@@ -103,9 +103,9 @@ export default function Home() {
       }
       {
         selectedCCTVIndex !== null && (
-          <div className="fixed z-100 top-20 right-30 bg-black p-4 rounded shadow-lg w-200 space-y-2">
+          <div className="fixed z-100 top-20 right-30 bg-black p-4 rounded shadow-lg w-150 space-y-2">
             <h2 className="text-lg font-semibold">{cctvLocations[selectedCCTVIndex].description}</h2>
-            <div className="relative w-full pb-[56.25%] h-0">
+            <div className="relative w-full pb-[75%] h-0">
               {cctvLocations[selectedCCTVIndex].streamUrl && <HlsPlayer src={cctvLocations[selectedCCTVIndex].streamUrl} />}
             </div>
             <button className="px-4 py-2 bg-blue-500 cursor-pointer text-white rounded" onClick={() => setSelectedCCTVIndex(null)}>Close</button>

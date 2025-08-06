@@ -6,16 +6,16 @@ export default function HlsPlayer({ src }: { src: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const m3u8Url = encodeURIComponent(src);
+    const proxyUrl = `/api/stream?url=${m3u8Url}`;
 
     if (Hls.isSupported()) {
       const hls = new Hls();
-      hls.loadSource(src);
-      hls.attachMedia(videoRef.current);
-    } else if (videoRef.current.canPlayType("application/vnd.apple.mpegurl")) { // jika browser safari
-      videoRef.current.src = src;
-    } else {
-      console.error("HLS is not supported in this browser.");
+      hls.loadSource(proxyUrl);
+      hls.attachMedia(video!);
+    } else if (video?.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = proxyUrl;
     }
   }, [src]);
 
