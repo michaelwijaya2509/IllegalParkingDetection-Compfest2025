@@ -3,11 +3,15 @@
 :root {
   --color-primary: #000000;
   --color-secondary: #FFFFFF;
+  --color-tile1: #161616;
+  --color-tile2: #202020;
 }
 
 @theme inline {
   --color-primary: var(--color-primary);
   --color-secondary: var(--color-secondary);
+  --color-tile1: var(--color-tile1);
+  --color-tile2: var(--color-tile2);
 
   --font-primary: var(--font-poppins);
   --font-secondary: var(--font-geist-mono);

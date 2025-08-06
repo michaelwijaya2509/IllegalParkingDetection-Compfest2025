@@ -31,29 +31,30 @@ export default function Home() {
   };
 
   return (
-    <main className="flex flex-row justify-center w-full min-h-screen">
+    <main className="flex flex-row justify-center w-full min-h-screen space-x-10 p-10">
       <div>
-        <div className="text-3xl text-center w-[60vh] font-bold my-5">
+        <div className="text-3xl text-center w-[60vh] font-bold mb-10">
           Illegal Parking Cases
         </div>
         {
           illegalParkingLocations.length === 0 ? (
             <div className="text-center text-gray-500">No illegal parking cases found.</div>
           ) : (
-            <div className="pl-5">
-              <div className="flex mb-3">
-                <BiSort className="text-2xl text-gray-500 cursor-pointer" />
+            <div className="w-full">
+              <div className="flex mb-5 items-center">
+                <BiSort className="text-2xl text-gray-400 cursor-pointer" />
                 <span className="ml-2 text-lg font-semibold">Sort by:</span>
                 <select className="ml-2 border rounded px-2 py-1 bg-black">
                   <option value="date">Urgency</option>
                   <option value="location">Time</option>
                 </select>
               </div>
-              <div className="flex flex-col space-y-2">
+              <div className="flex flex-col w-full">
                 {illegalParkingLocations.map((location, index) => (
-                  <button key={index} className="border max-w-150 cursor-pointer p-2 text-start" onClick={() => handleEventClick(index)}>
-                    <strong>{location.locationName}</strong>: {location.narration} <br />
-                    <span className="text-sm text-gray-500">{new Date(location.timestamp).toLocaleString()}</span>
+                  <button key={index} className={`w-full cursor-pointer hover:opacity-80 transition py-2 px-3 text-sm space-y-2 text-start ${index % 2 === 0 ? 'bg-tile1' : 'bg-tile2'}`} onClick={() => handleEventClick(index)}>
+                    <div className="font-semibold text-md">{location.locationName}</div>
+                    <div>{location.narration}</div>
+                    <div className="text-gray-400 font-secondary">{new Date(location.timestamp).toLocaleString()}</div>
                   </button>
                 ))}
               </div>
@@ -62,7 +63,7 @@ export default function Home() {
         }
       </div>
       <Map 
-        className="h-[calc(100vh-120px)] w-full z-50 m-10" 
+        className="h-[calc(100vh-120px)] w-full z-50" 
         illegalParkingLocations={illegalParkingLocations}
         defaultViewingCoordinates={previewCoordinates ?? [-6.921817208463581, 107.6070564264402]} 
         cctvLocations={cctvLocations} 
@@ -81,7 +82,7 @@ export default function Home() {
       />
       {
         selectedIndex !== null && (
-          <div className="fixed z-100 top-20 right-20 bg-black p-4 rounded shadow-lg max-w-100 space-y-2">
+          <div className="fixed z-100 top-20 right-30 bg-black p-4 rounded shadow-lg max-w-100 space-y-2">
             <h2 className="text-lg font-semibold">{illegalParkingLocations[selectedIndex ?? 0].locationName}</h2>
             <div className="relative w-full pb-[56.25%] h-0">
               <iframe
@@ -102,7 +103,7 @@ export default function Home() {
       }
       {
         selectedCCTVIndex !== null && (
-          <div className="fixed z-100 top-20 right-20 bg-black p-4 rounded shadow-lg w-200 space-y-2">
+          <div className="fixed z-100 top-20 right-30 bg-black p-4 rounded shadow-lg w-200 space-y-2">
             <h2 className="text-lg font-semibold">{cctvLocations[selectedCCTVIndex].description}</h2>
             <div className="relative w-full pb-[56.25%] h-0">
               {cctvLocations[selectedCCTVIndex].streamUrl && <HlsPlayer src={cctvLocations[selectedCCTVIndex].streamUrl} />}
