@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #000000;
+  --color-secondary: #FFFFFF;
+}
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+
+  --font-primary: var(--font-poppins);
+  --font-secondary: var(--font-geist-mono);
+}
+
+body {
+  font-family: var(--font-primary);
+  background-color: var(--color-primary);
+  color: var(--color-secondary);
+}
