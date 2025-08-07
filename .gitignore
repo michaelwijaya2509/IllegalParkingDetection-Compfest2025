@@ -1,7 +1,8 @@
-video/
-event_dataset/
-dataset/
-event_dataset_enhanced/
-congestion.zip
-congestion/
-event_dataset_clipped/
+.DS_Store
+*.zip
+mlflow.db
+mlruns/
+models/
+venv/
+__pycache__/
+*.pyc
