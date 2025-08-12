@@ -1,6 +1,21 @@
-video/
-event_dataset/
-dataset/
-event_dataset_enhanced/
-congestion.zip
-congestion/
+# Python virtual environment
+venv/
+
+# macOS system files
+.DS_Store
+
+# Data, media, and large files
+*.zip
+*.mp4
+*.jpg
+
+# MLflow and model artifacts
+mlruns/
+mlflow.db
+models/
+results/
+
+# Datasets and generated folders
+event/
+event_dataset_clipped/
+illegal/
