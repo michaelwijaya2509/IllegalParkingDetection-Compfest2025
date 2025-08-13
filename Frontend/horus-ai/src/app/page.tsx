@@ -2,7 +2,7 @@
 import HlsPlayer from '@/components/HLSPlayer';
 import { cctvLocations, illegalParkingLocations } from '@/utilities/DummyData';
 import dynamic from 'next/dynamic'
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BiSort } from "react-icons/bi";
 
 // dynamic import untuk Map karena leaflet tidak support SSR
@@ -14,6 +14,16 @@ export default function Home() {
   const [previewCoordinates, setPreviewCoordinates] = useState<[number, number] | null>(null);
   const [selectedCCTVIndex, setSelectedCCTVIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [events, setEvents] = useState<any[]>([]);
+  
+  useEffect(() => {
+    const es = new EventSource("http://localhost:5000/events");
+    es.onopen = () => console.log("✅ SSE connected");
+    es.onmessage = e => console.log("📡 Message:", e.data);
+    es.onerror = e => console.error("❌ SSE error:", e);
+    return () => es.close();
+  }, []);
 
   const handleEventClick = (index: number | null) => {
     if (selectedIndex === index || index === null) {

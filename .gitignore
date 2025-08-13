@@ -1,3 +1,12 @@
+video/
+event_dataset/
+dataset/
+event_dataset_enhanced/
+congestion.zip
+congestion/
+event_dataset_clipped/
+best_congestion_classifier.pt
+
 # Python virtual environment
 venv/
 
@@ -17,5 +26,4 @@ results/
 
 # Datasets and generated folders
 event/
-event_dataset_clipped/
 illegal/
