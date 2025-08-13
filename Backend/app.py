@@ -6,7 +6,7 @@ import json
 from inference import start_detection_loop
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/events": {"origins": "*"}})
 
 # Queue for real-time event streaming
 event_queue = queue.Queue()
@@ -18,7 +18,11 @@ def events():
         while True:
             event = event_queue.get()
             yield f"data: {json.dumps(event)}\n\n"
-    return Response(stream(), mimetype="text/event-stream")
+    return Response(stream(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"  # For nginx, if used
+    })
+
 
 @app.route("/test-event", methods=["POST"])
 def test_event():
@@ -37,3 +41,11 @@ if __name__ == "__main__":
     detection_thread.start()
 
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+@app.after_request
+def after_request(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    response.headers["Content-Type"] = "text/event-stream"
+    return response
