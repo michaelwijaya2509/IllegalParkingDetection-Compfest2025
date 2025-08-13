@@ -1,51 +1,62 @@
 from flask import Flask, jsonify, Response, request
-from flask_cors import CORS # prevents CORS error in FE
+from flask_cors import CORS
 import threading
 import queue
 import json
-from inference import start_detection_loop
 
 app = Flask(__name__)
 CORS(app, resources={r"/events": {"origins": "*"}})
 
-# Queue for real-time event streaming
-event_queue = queue.Queue()
+history_events = []
+clients = []
 
 @app.route("/events")
 def events():
-    """Stream illegal parking events via SSE."""
-    def stream():
-        while True:
-            event = event_queue.get()
-            yield f"data: {json.dumps(event)}\n\n"
-    return Response(stream(), mimetype="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no"  # For nginx, if used
-    })
+    client_ip = request.remote_addr
+    print(f"🟩 New client connected: {client_ip}")
 
+    client_queue = queue.Queue()
+    clients.append(client_queue)
+
+    def stream():
+        try:
+            # Broadcast history events ke client ketika baru terhubung
+            for event in history_events:
+                yield f"data: {json.dumps(event)}\n\n"
+
+            # Broadcast event baru ke client (client listens)
+            while True:
+                event = client_queue.get()
+                yield f"data: {json.dumps(event)}\n\n"
+        except GeneratorExit:
+            print(f"🔴 Client {client_ip} disconnected")
+            clients.remove(client_queue)
+            raise
+
+    return Response(
+        stream(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+# Untuk testing saja (bisa pakai curl)
+
+# Copy comment di bawah ke terminal (uncomment dulu)
+
+# curl -X POST http://localhost:5000/test-event `
+# -H "Content-Type: application/json" `
+# -d '{"urgency": 0.9, "locationName": "Jl. Braga", "coordinate": [-6.92145482747903, 107.6096481364423], "time": "2025-08-13T17:36:00.000Z", "videoClipUrl": "", "reason": "Mobil terparkir di samping trotoar, menghalangi pejalan kaki dan akses ke rumah sakit"}'
 
 @app.route("/test-event", methods=["POST"])
 def test_event():
-    """Manually push an event (for debugging)."""
     data = request.get_json()
-    event_queue.put(data)
+    history_events.append(data)
+
+    # Broadcast to all client queues
+    for q in clients:
+        q.put(data)
+
     return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    # Start detection logic in a separate thread
-    detection_thread = threading.Thread(
-        target=start_detection_loop,
-        args=(event_queue,),
-        daemon=True
-    )
-    detection_thread.start()
-
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
-@app.after_request
-def after_request(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Cache-Control"] = "no-cache"
-    response.headers["X-Accel-Buffering"] = "no"
-    response.headers["Content-Type"] = "text/event-stream"
-    return response
+    app.run("0.0.0.0", 5000, debug=True)

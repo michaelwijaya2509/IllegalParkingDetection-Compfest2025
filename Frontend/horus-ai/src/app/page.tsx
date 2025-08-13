@@ -15,7 +15,6 @@ export default function Home() {
   const [selectedCCTVIndex, setSelectedCCTVIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [events, setEvents] = useState<any[]>([]);
   
   useEffect(() => {
     const es = new EventSource("http://localhost:5000/events");
