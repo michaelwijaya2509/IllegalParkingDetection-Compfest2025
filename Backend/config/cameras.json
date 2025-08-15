@@ -3,9 +3,10 @@
     "cam_id": "viet1",
     "name": "Quang Trung Street",
     "address": "130 Quang Trung, Hải Châu, Đà Nẵng, Vietnam",
-    "stream_url": "IllegalParkingDetection-Compfest2025/Backend/data/videos/vietnam20.mp4",
-    "zones": ["IllegalParkingDetection-Compfest2025/Backend/data/zones/zona_enhanced.json",
-              "IllegalParkingDetection-Compfest2025/Backend/data/zones/zona_vietnam1.json"
-             ]
+    "stream_url": "Backend/data/video/illegal_2.mp4",
+    "zones": [
+      "Backend/data/zones/zona_enhanced.json",
+      "Backend/data/zones/zona_vietnam1.json"
+    ]
   }
 ]
