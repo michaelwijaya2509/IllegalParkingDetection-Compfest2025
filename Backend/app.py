@@ -9,6 +9,9 @@ import time
 import os
 import logging
 from collections import deque
+import yt_dlp
+import requests
+from urllib.parse import urlparse, urljoin
 
 import cv2
 import numpy as np
@@ -33,7 +36,7 @@ def resolve_path(p):
 
 # ------------------------ Flask & CORS ------------------------
 app = Flask(__name__)
-CORS(app)  # Izinkan semua origin untuk semua route
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})  # Izinkan semua origin untuk semua route
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("horusai.app")
 
@@ -388,7 +391,88 @@ def snaps(name):
 def health():
     return {"status": "ok", "workers": list(workers.keys()), "clients": len(clients)}
 
+
+
+# ------------------------ API: YouTube URL Handler  --------------------------
+@app.post("/detector/resolve_url")
+def resolve_youtube_url():
+    
+    # Endpoint mengubah URL halaman YouTube menjadi URL stream langsung (.m3u8).
+    
+    p = request.get_json(force=True)
+    page_url = p.get("url")
+
+    if not page_url:
+        return jsonify({"ok": False, "error": "URL parameter is missing"}), 400
+
+    log.info(f"Resolving URL: {page_url}")
+    
+    ydl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'force_generic_extractor': False,
+        'format': 'best[protocol=m3u8_native]', 
+        'simulate': True,
+        'forceurl': True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(page_url, download=False)
+            stream_url = info['url']
+        
+        log.info(f"Resolved to: {stream_url}")
+        return jsonify({"ok": True, "stream_url": stream_url})
+
+    except Exception as e:
+        log.error(f"Failed to resolve URL {page_url}: {e}")
+        return jsonify({"ok": False, "error": f"Failed to resolve URL: {e}"}), 500
+    
+
+
+@app.route("/stream_proxy/<path:subpath>")
+@app.route("/stream_proxy/")
+def stream_proxy(subpath=None):
+
+    base_url = request.args.get('url')
+    if not base_url:
+        return "URL parameter is missing", 400
+
+    if subpath:
+        full_url = urljoin(base_url, subpath)
+    else:
+        full_url = base_url
+
+    try:
+        response = requests.get(full_url, stream=True)
+        response.raise_for_status() 
+
+        content_type = response.headers.get('Content-Type', '')
+
+        if 'mpegurl' in content_type:
+            content = response.text
+            lines = content.split('\n')
+            new_lines = []
+            
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    new_lines.append(f"/stream_proxy/{line}?url={base_url}")
+                else:
+                    new_lines.append(line)
+            
+            new_content = '\n'.join(new_lines)
+            return Response(new_content, content_type=content_type)
+        
+        else:
+            return Response(response.iter_content(chunk_size=1024), content_type=content_type)
+
+    except requests.exceptions.RequestException as e:
+        log.error(f"Failed to proxy stream from {full_url}: {e}")
+        return f"Failed to proxy stream: {str(e)}", 500
+
 # ------------------------ Main -------------------------------
+
 if __name__ == "__main__":
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     host = os.environ.get("HOST", "0.0.0.0")

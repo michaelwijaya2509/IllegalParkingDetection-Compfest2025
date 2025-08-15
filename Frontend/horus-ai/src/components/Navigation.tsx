@@ -24,7 +24,7 @@ const Navigation = () => {
     { href: "/live-feed", label: "Live Feed", icon: FiCamera },
     { href: "/incidents", label: "Incidents", icon: FiAlertTriangle },
     { href: "/analytics", label: "Analytics", icon: FiBarChart2 },
-    { href: "/addlocation", label: "Add New Location", icon: FiMapPin },
+    { href: "/newlocation", label: "Add New Location", icon: FiMapPin },
     { href: "/settings", label: "Settings", icon: FiSettings },
   ];
 

@@ -195,7 +195,7 @@ export default function LiveFeed() {
     <div className="min-h-screen bg-primary">
       <Navigation />
       <main className="pt-20 p-6 mt-10">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-8xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
               Live Camera Feed
@@ -281,7 +281,7 @@ export default function LiveFeed() {
                           selectedCamera.stream_endpoint
                         }?t=${new Date().getTime()}`} // Tambah timestamp untuk bust cache
                         alt="Live video feed"
-                        className="w-full h-full object-contain"
+                        className="absolute top-0 left-0 w-full h-full object-contain"
                       />
                       <canvas
                         ref={canvasRef}
