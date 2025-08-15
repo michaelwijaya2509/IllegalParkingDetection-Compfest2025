@@ -136,16 +136,16 @@ def transform_overpass(raw: Dict[str, Any], lat: float, lon: float, radius_m: in
     return {
         "roads": roads[:40],
         "pois": sorted(pois, key=lambda x: x["distance_m"])[:40],
-        "intersections": [],  # bisa disempurnakan
+        "intersections": [],  
         "has_parking_lt50m": has_parking_lt50,
         "meta": {"radius_m": radius_m, "provider": "overpass"}
     }
 
 #Bangun LLM 
-def build_system_instruction() -> str: #prompt untuk llm
+def build_system_instruction() -> str: 
     return (
         "You are an urgency arbiter for illegal parking events in the ParkLens AI system.\n"
-        "1) Input: an event {cam_id, lat, lon, duration_s} and OSM-derived features.\n"
+        "1) Input: an event {cam_id, lat, lon, duration_s, is_traffic_jam} and OSM-derived features.\n"
         "2) Compute a deterministic base_score (0–100) using this rubric:\n"
         "   - Roads: trunk +15, primary +12, secondary +8; maxspeed ≥60 +6; lanes ≥4 +4; intersection degree ≥4 +5.\n"
         "   - POI: hospital +20 (cap 40), clinic +12, fire_station +12, police +8,\n"
@@ -153,7 +153,7 @@ def build_system_instruction() -> str: #prompt untuk llm
         "   - Special: access=no or busway +8; <30 m from intersection +5.\n"
         "   - Counter: official parking <50 m −10; mall-dominant without arterial −6.\n"
         "3) Adjust with event signals:\n"
-        "   - duration_s > 300 +20; driver_left_vehicle True +25; traffic_jam True −20.\n"
+        "   - duration_s > 300 +20; driver_left_vehicle True +25; is_traffic_jam True −20.\n"
         "Return JSON only: {priority_score, reason, recommend_action[], dispatch_target?, category?}."
         "Return JSON that matches the provided response_schema exactly. "
         "No extra fields. Keep arrays concise and factual.\n"
@@ -181,14 +181,15 @@ def _priority_bucket(s: int) -> str:
     return "low"
 
 #hashing event pelanggaran (semacam hash di github commit)
-def _hash_context(ev: ViolationEvent, cam: CameraMeta, feats: Dict[str, Any]) -> str:
+def _hash_context(ev: ViolationEvent, cam: CameraMeta, feats: Dict[str, Any], is_dense: bool) -> str:
     h = hashlib.sha256()
     h.update(json.dumps(asdict(ev), sort_keys=True).encode())
     h.update(json.dumps(asdict(cam), sort_keys=True).encode())
     h.update(json.dumps(feats, sort_keys=True).encode())
+    h.update(str(is_dense).encode())
     return h.hexdigest()
 
-# ================== Engine ==================
+# main urgency engine class
 class UrgencyEngine:
     def __init__(self,
                  cameras: Dict[str, CameraMeta],
@@ -203,28 +204,29 @@ class UrgencyEngine:
         self.model_name = model_name
         self.radius_m = radius_m
         self.log = logger or logging.getLogger("urgency_engine")
-        self._in_q: "queue.Queue[ViolationEvent]" = queue.Queue()
+        self._in_q: "queue.Queue[Tuple[ViolationEvent, bool]]" = queue.Queue()
         self._ready: List[ScoredEvent] = []
-        self._osm_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}   # cam_id -> (ts, features)
+        self._osm_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}   
         self._cache: Dict[str, ScoredEvent] = {}
 
-    # ---- public API ----
-    def ingest(self, event: ViolationEvent) -> None:
-        self._in_q.put(event)
+    # Public API buat dipanggil dari app.py
+    def ingest(self, event: ViolationEvent, is_dense: bool = False) -> None:
+        self._in_q.put((event, is_dense))
 
     def aggregate_and_score(self, window_s: int = 20) -> int:
-        bucket: Dict[str, List[ViolationEvent]] = {}
+        bucket: Dict[str, List[Tuple[ViolationEvent, bool]]] = {}
         t0 = time.time()
         while time.time() - t0 < window_s:
             try:
-                ev = self._in_q.get(timeout=0.2)
-                bucket.setdefault(ev.cam_id, []).append(ev)
+                ev_tuple = self._in_q.get(timeout=0.2)
+                event, is_dense = ev_tuple
+                bucket.setdefault(event.cam_id, []).append((event, is_dense))
             except queue.Empty:
                 pass
 
         total = 0
-        for cam_id, events in bucket.items():
-            picked = self._pick_per_track(events)
+        for cam_id, event_tuples in bucket.items():
+            picked = self._pick_per_track(event_tuples)
             scored = self.score_events(picked)
             self._ready.extend(scored)
             total += len(scored)
@@ -234,12 +236,13 @@ class UrgencyEngine:
         out, self._ready = self._ready, []
         return out
 
-    def score_events(self, events: Iterable[ViolationEvent]) -> List[ScoredEvent]:
+    def score_events(self, event_tuples: Iterable[Tuple[ViolationEvent, bool]]) -> List[ScoredEvent]:
         out: List[ScoredEvent] = []
-        for ev in events:
+        for ev, is_dense in event_tuples:
             cam = self._resolve_camera(ev.cam_id)
             feats = self._get_osm_features(cam)
-            ctx_hash = _hash_context(ev, cam, feats)
+            ctx_hash = _hash_context(ev, cam, feats, is_dense)
+            
             if ctx_hash in self._cache:
                 out.append(self._cache[ctx_hash]); continue
 
@@ -247,7 +250,7 @@ class UrgencyEngine:
                 "cam_id": cam.cam_id, "lat": cam.lat, "lon": cam.lon,
                 "duration_s": ev.duration_s,
                 "driver_left_vehicle": ev.driver_left_vehicle,
-                "traffic_jam": ev.traffic_jam,
+                "is_traffic_jam": is_dense,  
                 "zone_name": ev.zone_name
             }
             system_text = build_system_instruction()
@@ -309,15 +312,14 @@ class UrgencyEngine:
             out.append(scored)
         return out
 
-    # ---- internal helpers ----
-    def _pick_per_track(self, events: List[ViolationEvent]) -> List[ViolationEvent]:
+    def _pick_per_track(self, event_tuples: List[Tuple[ViolationEvent, bool]]) -> List[Tuple[ViolationEvent, bool]]:
         # jika ada track_id di extra, pilih durasi terpanjang per track
-        best: Dict[Any, ViolationEvent] = {}
-        for e in events:
+        best: Dict[Any, Tuple[ViolationEvent, bool]] = {}
+        for e, is_dense in event_tuples:
             tid = e.extra.get("track_id", e.event_id)
             cur = best.get(tid)
-            if (cur is None) or (e.duration_s > cur.duration_s):
-                best[tid] = e
+            if (cur is None) or (e.duration_s > cur[0].duration_s):
+                best[tid] = (e, is_dense)
         return list(best.values())
 
     def _resolve_camera(self, cam_id: str) -> CameraMeta:
@@ -337,9 +339,10 @@ class UrgencyEngine:
             return feats
         raw = fetch_overpass(cam.lat, cam.lon, self.radius_m)
         feats = transform_overpass(raw, cam.lat, cam.lon, self.radius_m)
-        if cam.poi:
-            # gabung POI manual jika ada
+        if hasattr(cam, 'poi') and cam.poi:
             for p in cam.poi[:6]:
                 feats["pois"].append({"kind": "manual", "name": p, "distance_m": 0})
         self._osm_cache[cam.cam_id] = (time.time(), feats)
         return feats
+
+
