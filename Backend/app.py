@@ -1,4 +1,4 @@
-# app.py (MODIFIED)
+# app.py (RELATIVE-PATH READY)
 
 from flask import Flask, jsonify, Response, request, send_from_directory
 from flask_cors import CORS
@@ -17,11 +17,25 @@ from math import sqrt
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
+# ======================== Path Helpers ========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def resolve_path(p):
+    """
+    Return absolute path anchored at this app.py location (unless already absolute).
+    Also accepts webcam index passed as int or digit-string ("0", "1").
+    """
+    if isinstance(p, int):
+        return p
+    if isinstance(p, str) and p.isdigit():
+        return int(p)
+    return p if os.path.isabs(p) else os.path.normpath(os.path.join(BASE_DIR, p))
+
 # ------------------------ Flask & CORS ------------------------
 app = Flask(__name__)
-CORS(app) # Izinkan semua origin untuk semua route
+CORS(app)  # Izinkan semua origin untuk semua route
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("parklenz.app")
+log = logging.getLogger("horusai.app")
 
 # ------------------------ SSE infra (Tidak diubah) --------------------------
 history_events = deque(maxlen=int(os.environ.get("SSE_HISTORY_MAX", "500")))
@@ -64,7 +78,7 @@ def events():
 
 # ------------------------ Rule-based detector -----------------
 workers: dict[str, "DetectorWorker"] = {}
-SNAP_DIR = os.environ.get("SNAP_DIR", "snaps")
+SNAP_DIR = resolve_path(os.environ.get("SNAP_DIR", "snaps"))
 os.makedirs(SNAP_DIR, exist_ok=True)
 MOVE_PX_THRESH = int(os.environ.get("MOVE_PX_THRESH", "10"))
 MIN_STOP_S = float(os.environ.get("MIN_STOP_S", "300"))
@@ -76,12 +90,13 @@ def point_in_polygon(x: int, y: int, polygon: list[list[int]]):
 def load_zones(paths: list[str]):
     polys: list[dict] = []
     for p in paths:
-        with open(p, "r", encoding="utf-8") as f:
+        zp = resolve_path(p)
+        with open(zp, "r", encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict) and "polygon" in data:
-            polys.append({"name": data.get("name", os.path.basename(p)), "polygon": data["polygon"]})
+            polys.append({"name": data.get("name", os.path.basename(zp)), "polygon": data["polygon"]})
         elif isinstance(data, list):
-            polys.append({"name": os.path.basename(p), "polygon": data})
+            polys.append({"name": os.path.basename(zp), "polygon": data})
         else:
             raise ValueError(f"Zona format tidak dikenal: {p}")
     return polys
@@ -90,7 +105,7 @@ class DetectorWorker(threading.Thread):
     def __init__(self, cam_id: str, stream_url: str, zone_files: list[str], model_path: str = "yolo11n.pt", device: str | None = None):
         super().__init__(daemon=True)
         self.cam_id = cam_id
-        self.stream_url = stream_url
+        self.stream_url = resolve_path(stream_url)
         self.zone_files = zone_files
         self.zones = load_zones(zone_files)
         self.stop_flag = threading.Event()
@@ -119,14 +134,16 @@ class DetectorWorker(threading.Thread):
         dev = self.device or ("cuda" if cv2.cuda.getCudaEnabledDeviceCount() > 0 else "cpu")
         self.model = YOLO(self.model_path)
         if dev == "cuda":
-            try: self.model.to("cuda")
-            except Exception: pass
+            try:
+                self.model.to("cuda")
+            except Exception:
+                pass
         self.label_map = self.model.names
         cap = cv2.VideoCapture(self.stream_url)
         if not cap.isOpened():
             broadcast({"type": "stream_error", "cam_id": self.cam_id, "msg": "cannot open stream"}, also_store=False)
             return
-        
+
         self.frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -147,21 +164,22 @@ class DetectorWorker(threading.Thread):
                     x1, y1, x2, y2 = map(float, box.xyxy[0].tolist())
                     w, h = x2 - x1, y2 - y1
                     detections.append(([x1, y1, w, h], float(box.conf[0]), cls_id))
-            
+
             # 2) Tracking
-            try: tracks = self.tracker.update_tracks(detections, frame=frame)
+            try:
+                tracks = self.tracker.update_tracks(detections, frame=frame)
             except Exception as e:
                 broadcast({"type": "track_error", "cam_id": self.cam_id, "error": str(e)}, also_store=False)
                 continue
-            
+
             now_ts = time.time()
-            
             current_tracks_for_frontend = []
 
             # 3) Rule
             for tr in tracks:
-                if not tr.is_confirmed(): continue
-                
+                if not tr.is_confirmed():
+                    continue
+
                 x1, y1, x2, y2 = map(int, tr.to_ltrb())
                 cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
                 cls_id = tr.det_class
@@ -181,7 +199,7 @@ class DetectorWorker(threading.Thread):
                     if tr.track_id in self.track_state:
                         self.track_state.pop(tr.track_id, None)
                     continue
-                
+
                 st = self.track_state.get(tr.track_id)
                 if st is None:
                     st = {"last_pos": (cx, cy), "stationary_s": 0.0, "last_ts": now_ts, "zone_name": zone_name_hit}
@@ -190,14 +208,16 @@ class DetectorWorker(threading.Thread):
                 dx, dy = cx - st["last_pos"][0], cy - st["last_pos"][1]
                 dist = sqrt(dx * dx + dy * dy)
                 dt_s = now_ts - st["last_ts"]
-                if dist < MOVE_PX_THRESH: st["stationary_s"] += dt_s
-                else: st["stationary_s"], st["last_pos"] = 0.0, (cx, cy)
+                if dist < MOVE_PX_THRESH:
+                    st["stationary_s"] += dt_s
+                else:
+                    st["stationary_s"], st["last_pos"] = 0.0, (cx, cy)
                 st["last_ts"] = now_ts
                 st["zone_name"] = zone_name_hit
-                
+
                 is_close_to_violation = st["stationary_s"] >= MIN_STOP_S * 0.8
                 is_violation = st["stationary_s"] >= MIN_STOP_S
-                
+
                 current_tracks_for_frontend.append({
                     "track_id": tr.track_id,
                     "bbox": [x1, y1, x2, y2],
@@ -206,7 +226,7 @@ class DetectorWorker(threading.Thread):
                     "is_close_to_violation": is_close_to_violation,
                     "is_violation": is_violation,
                 })
-                
+
                 # 4) Trigger pelanggaran (logic SSE tetap sama)
                 if is_violation:
                     snap_path = os.path.join(SNAP_DIR, f"{self.cam_id}_{tr.track_id}_{int(now_ts)}.jpg")
@@ -216,15 +236,26 @@ class DetectorWorker(threading.Thread):
                         if crop.size > 0:
                             cv2.imwrite(snap_path, crop)
                             snap_url = f"/snaps/{os.path.basename(snap_path)}"
-                    except Exception: pass
-                    
-                    event_payload = { "type": "violation", "cam_id": self.cam_id, "track_id": tr.track_id, "class": cls_name, "duration_s": int(st["stationary_s"]), "zone_name": st["zone_name"], "ts": int(now_ts), "snapshot_path": snap_path, "snapshot_url": snap_url }
+                    except Exception:
+                        pass
+
+                    event_payload = {
+                        "type": "violation",
+                        "cam_id": self.cam_id,
+                        "track_id": tr.track_id,
+                        "class": cls_name,
+                        "duration_s": int(st["stationary_s"]),
+                        "zone_name": st["zone_name"],
+                        "ts": int(now_ts),
+                        "snapshot_path": snap_path,
+                        "snapshot_url": snap_url
+                    }
                     broadcast(event_payload)
                     st["stationary_s"] = 0.0
-            
+
             with self.frontend_data_lock:
                 self.frontend_tracking_data["tracks"] = current_tracks_for_frontend
-                
+
         cap.release()
         log.info("worker %s stopped", self.cam_id)
 
@@ -242,24 +273,27 @@ class DetectorWorker(threading.Thread):
 # ------------------------ Video Streaming Routes (Tidak diubah) ------------------------
 def generate_frames(cam_id: str):
     worker = workers.get(cam_id)
-    if not worker: return
+    if not worker:
+        return
     while cam_id in workers:
         frame = worker.get_frame()
         if frame is not None:
             ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
             if ret:
                 frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
         time.sleep(0.03)
 
 @app.route('/video/<cam_id>')
 def video_feed(cam_id):
-    if cam_id not in workers: return jsonify({"error": "Camera not running"}), 404
+    if cam_id not in workers:
+        return jsonify({"error": "Camera not running"}), 404
     return Response(generate_frames(cam_id), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 # ------------------------ Camera config (Perbaiki Path) ----------------------
-
-CAMCFG_PATH = "Backend/config/cameras.json"
+CAMCFG_PATH = resolve_path(os.environ.get("CAMCFG_PATH", "config/cameras.json"))
+log.info("Loading camera config from: %s", CAMCFG_PATH)
 try:
     with open(CAMCFG_PATH, "r", encoding="utf-8") as f:
         CAMCFG = {c["cam_id"]: c for c in json.load(f)}
@@ -273,7 +307,7 @@ def get_tracking_data(cam_id):
     worker = workers.get(cam_id)
     if not worker:
         return jsonify({"error": "Camera not running"}), 404
-    
+
     data = worker.get_tracking_data()
     data["timestamp"] = time.time()
     data["video_width"] = worker.frame_width
@@ -285,9 +319,11 @@ def get_tracking_data(cam_id):
 def start_detector_by_id():
     p = request.get_json(force=True)
     cam_id = p["cam_id"]
-    if cam_id in workers: return jsonify({"ok": False, "msg": "already running"}), 400
+    if cam_id in workers:
+        return jsonify({"ok": False, "msg": "already running"}), 400
     cfg = CAMCFG.get(cam_id)
-    if not cfg: return jsonify({"ok": False, "msg": f"cam_id {cam_id} not found in config"}), 404
+    if not cfg:
+        return jsonify({"ok": False, "msg": f"cam_id {cam_id} not found in config"}), 404
     stream_url, zones = cfg["stream_url"], cfg["zones"]
     model = p.get("model", "yolo11n.pt")
     w = DetectorWorker(cam_id=cam_id, stream_url=stream_url, zone_files=zones, model_path=model)
@@ -300,7 +336,8 @@ def stop_detector():
     p = request.get_json(force=True)
     cam_id = p["cam_id"]
     w = workers.get(cam_id)
-    if not w: return jsonify({"ok": False, "msg": "not running"}), 404
+    if not w:
+        return jsonify({"ok": False, "msg": "not running"}), 404
     w.stop()
     del workers[cam_id]
     return jsonify({"ok": True})
@@ -320,7 +357,6 @@ def detector_status():
         "sse_clients": len(clients),
     })
 
-
 @app.get("/cameras")
 def cameras():
     camera_list = []
@@ -332,7 +368,7 @@ def cameras():
             "stream_endpoint": f"/video/{cam_id}" if is_running else None
         })
     return jsonify(camera_list)
-    
+
 @app.post("/cameras/reload")
 def cameras_reload():
     global CAMCFG
@@ -340,7 +376,8 @@ def cameras_reload():
         with open(CAMCFG_PATH, "r", encoding="utf-8") as f:
             CAMCFG = {c["cam_id"]: c for c in json.load(f)}
         return jsonify({"ok": True, "count": len(CAMCFG)})
-    except Exception as e: return jsonify({"ok": False, "error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 # ------------------------ API: misc --------------------------
 @app.get("/snaps/<path:name>")
