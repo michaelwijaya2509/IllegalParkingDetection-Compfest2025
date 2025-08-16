@@ -222,8 +222,12 @@ class DetectorWorker(threading.Thread):
 
                 # cek macet (kalau ≥8 kendaraan)
                 if len(detections) >= 8:
+                    print("-- Terdeteksi lebih dari 8 kendaraan --")
+                    print("8️⃣ Banyak kendaraan dalam frame:", len(detections))
                     isMacet = check_macet_cnn(frame)
+                    print("CNN isMacet:", isMacet)
                     if isMacet:
+                        print("🚗 Macet terdeteksi, timer dimatikan")
                         st["exclude_from_detection"] = True
                         st["stationary_s"] = 0.0
                         continue
@@ -252,6 +256,7 @@ class DetectorWorker(threading.Thread):
 
                 # 4) Trigger pelanggaran (logic SSE tetap sama)
                 if is_violation:
+                    print("‼️Terdeteksi sebuah violation ‼️")
                     snap_path = os.path.join(SNAP_DIR, f"{self.cam_id}_{tr.track_id}_{int(now_ts)}.jpg")
                     snap_url = None
                     try:
