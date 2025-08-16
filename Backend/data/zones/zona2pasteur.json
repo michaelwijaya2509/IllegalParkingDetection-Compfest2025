@@ -1,0 +1,28 @@
+{
+  "polygon": [
+    [
+      1300,
+      626
+    ],
+    [
+      1001,
+      550
+    ],
+    [
+      595,
+      1050
+    ],
+    [
+      1150,
+      1070
+    ]
+  ],
+  "video_metadata": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30.0,
+    "total_frames": 9439,
+    "video_path": "C:/Users/andre/Documents/Binus/Lomba/compfest/2025-08-16 20-28-00.mp4"
+  },
+  "creation_timestamp": 11304412875800
+}
