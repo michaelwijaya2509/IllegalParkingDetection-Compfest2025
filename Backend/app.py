@@ -12,6 +12,7 @@ from collections import deque
 import yt_dlp
 import requests
 from urllib.parse import urlparse, urljoin
+from cnn_macet import check_macet_cnn
 
 import cv2
 import numpy as np
@@ -203,10 +204,29 @@ class DetectorWorker(threading.Thread):
                         self.track_state.pop(tr.track_id, None)
                     continue
 
+                # ambil / buat state track lebih dulu
                 st = self.track_state.get(tr.track_id)
                 if st is None:
-                    st = {"last_pos": (cx, cy), "stationary_s": 0.0, "last_ts": now_ts, "zone_name": zone_name_hit}
+                    st = {
+                        "last_pos": (cx, cy),
+                        "stationary_s": 0.0,
+                        "last_ts": now_ts,
+                        "zone_name": zone_name_hit,
+                        "exclude_from_detection": False
+                    }
                     self.track_state[tr.track_id] = st
+
+                # kalau sudah ditandai exclude, skip
+                if st.get("exclude_from_detection", False):
+                    continue
+
+                # cek macet (kalau ≥8 kendaraan)
+                if len(detections) >= 8:
+                    isMacet = check_macet_cnn(frame)
+                    if isMacet:
+                        st["exclude_from_detection"] = True
+                        st["stationary_s"] = 0.0
+                        continue
 
                 dx, dy = cx - st["last_pos"][0], cy - st["last_pos"][1]
                 dist = sqrt(dx * dx + dy * dy)
