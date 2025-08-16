@@ -187,8 +187,8 @@ export default function AddNewLocation() {
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
-      <main className="pt-20 p-6 mt-10">
-        <div className="max-w-7xl mx-auto">
+      <main className="pt-20 p-12 mt-10">
+        <div className="max-w-10xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
               Add New Surveillance Source

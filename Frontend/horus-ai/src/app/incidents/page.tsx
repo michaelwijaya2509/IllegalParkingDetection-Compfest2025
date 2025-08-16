@@ -16,7 +16,6 @@ export default function Incidents() {
 
   const filteredIncidents = illegalParkingLocations.filter((incident) => {
     if (filter === "all") return true;
-    // Add more filter logic here
     return true;
   });
 
@@ -24,8 +23,8 @@ export default function Incidents() {
     <div className="min-h-screen bg-primary">
       <Navigation />
 
-      <main className="pt-20 p-6 mt-10">
-        <div className="max-w-7xl mx-auto">
+      <main className="pt-20 p-20 mt-10">
+        <div className="max-w-10xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">

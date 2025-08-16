@@ -19,9 +19,8 @@ export default function Analytics() {
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
-
-      <main className="pt-20 p-6 mt-10">
-        <div className="max-w-7xl mx-auto">
+      <main className="pt-20 p-20 mt-10">
+        <div className="max-w-10xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
               Analytics Dashboard
@@ -60,7 +59,6 @@ export default function Analytics() {
               </div>
             </div>
 
-            {/* ini masih dummy data juga */}
             <div className="bg-tile1 border border-gray-700 rounded-lg p-6">
               <div className="flex items-center justify-between">
                 <div>

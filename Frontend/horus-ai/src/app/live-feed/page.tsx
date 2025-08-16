@@ -1,5 +1,3 @@
-// app/live-feed/page.tsx (MODIFIED)
-
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Navigation from "@/components/Navigation";
@@ -12,7 +10,6 @@ import {
   FiPlayCircle,
 } from "react-icons/fi";
 
-// --- PERUBAHAN 1: Definisikan tipe data dari API ---
 interface Camera {
   cam_id: string;
   name: string;
@@ -153,7 +150,7 @@ export default function LiveFeed() {
         console.error("Failed to fetch tracking data:", error);
         setTrackingData(null);
       }
-    }, 500); // Ambil data setiap 500ms
+    }, 500);
 
     return () => clearInterval(intervalId);
   }, [selectedCamera]);
@@ -171,11 +168,11 @@ export default function LiveFeed() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cam_id: cam_id }),
       });
-      // Refresh camera list to update status
+
       const response = await fetch(`${API_BASE_URL}/cameras`);
       const data = await response.json();
       setCameras(data);
-      // Set selected camera to the newly started one
+
       const newSelected = data.find((c: Camera) => c.cam_id === cam_id);
       if (newSelected) setSelectedCamera(newSelected);
     } catch (error) {
@@ -194,8 +191,8 @@ export default function LiveFeed() {
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
-      <main className="pt-20 p-6 mt-10">
-        <div className="max-w-8xl mx-auto">
+      <main className="pt-20 p-20 mt-10">
+        <div className="max-w-10xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
               Live Camera Feed
@@ -264,7 +261,6 @@ export default function LiveFeed() {
                   </button>
                 </div>
 
-                {/* --- PERUBAHAN 7: Ganti HLSPlayer dengan <img> dan <canvas> --- */}
                 <div
                   className={`relative bg-black rounded-lg overflow-hidden ${
                     isFullscreen
@@ -279,7 +275,7 @@ export default function LiveFeed() {
                         ref={videoRef}
                         src={`${API_BASE_URL}${
                           selectedCamera.stream_endpoint
-                        }?t=${new Date().getTime()}`} // Tambah timestamp untuk bust cache
+                        }?t=${new Date().getTime()}`}
                         alt="Live video feed"
                         className="absolute top-0 left-0 w-full h-full object-contain"
                       />
@@ -318,7 +314,6 @@ export default function LiveFeed() {
                       {selectedCamera?.is_running ? "Online" : "Offline"}
                     </p>
                   </div>
-                  {/* Info lain bisa ditambahkan dari data tracking jika perlu */}
                 </div>
               </div>
             </div>
