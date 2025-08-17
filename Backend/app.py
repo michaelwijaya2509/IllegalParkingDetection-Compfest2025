@@ -6,17 +6,21 @@ import threading
 import queue
 import json
 import time
+import datetime
 import os
 import logging
 from collections import deque
 import yt_dlp
 import requests
 import pickle
+
 from urllib.parse import urlparse, urljoin
 from cnn_macet import check_macet_cnn
 from cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
+from urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta
 
 
+from dataclasses import asdict
 import cv2
 import numpy as np
 from math import sqrt
@@ -132,6 +136,29 @@ def run_driver_exit_check(cam_id, track_id, frames, model, track_state_obj):
         log.info(f"[THREAD] Tidak terdeteksi supir keluar untuk track ID: {track_id}")
 
     track_state_obj["event_check_running"] = False
+
+
+
+def run_urgency_scoring_loop():
+
+    while True:
+        try:
+            urgency_engine.aggregate_and_score(window_s=10)
+            
+            scored_events = urgency_engine.get_ready()
+            
+            if scored_events:
+                log.info(f"Broadcasting {len(scored_events)} scored event(s).")
+                for scored_event in scored_events:
+                    broadcast({
+                        "type": "scored_violation",
+                        "data": asdict(scored_event) 
+                    })
+        except Exception as e:
+            log.error(f"Error in urgency scoring loop: {e}")
+        
+        time.sleep(10)
+
 
 class DetectorWorker(threading.Thread):
     def __init__(self, cam_id: str, stream_url: str, zone_files: list[str], model_path: str = "yolo11n.pt", device: str | None = None):
@@ -301,15 +328,21 @@ class DetectorWorker(threading.Thread):
                     except Exception:
                         pass
 
-                    event_payload = {
-                        "type": "violation", "cam_id": self.cam_id, "track_id": tr.track_id,
-                        "class": cls_name, "duration_s": int(st["stationary_s"]),
-                        "zone_name": st["zone_name"], "ts": int(now_ts),
-                        "reason": reason, "snapshot_path": snap_path,
-                        "snapshot_url": snap_url
-                    }
-                    broadcast(event_payload)
-                
+                    event_id = f"{self.cam_id}-{tr.track_id}-{int(now_ts)}"
+                    violation_event = ViolationEvent(
+                        event_id=event_id,
+                        cam_id=self.cam_id,
+                        duration_s=int(st["stationary_s"]),
+                        started_at=datetime.datetime.fromtimestamp(now_ts - st["stationary_s"]).isoformat(),
+                        driver_left_vehicle=st.get("driver_exited", False),
+                        traffic_jam=is_traffic_jam, 
+                        zone_name=st["zone_name"],
+                        snapshot_url=snap_url,
+                        extra={"track_id": tr.track_id}
+                    )
+
+                    urgency_engine.ingest(violation_event, is_dense=is_traffic_jam)
+                          
                 is_driver_locked = st.get("driver_exited", False)
                 current_tracks_for_frontend.append({
                     "track_id": tr.track_id, "bbox": [x1, y1, x2, y2], "class_name": cls_name,
@@ -367,6 +400,18 @@ try:
 except FileNotFoundError:
     CAMCFG = {}
     log.warning("cameras.json not found at %s", CAMCFG_PATH)
+
+# metadata kamera buat UrgencyEngine
+camera_metas = {
+    cam_id: CameraMeta(
+        cam_id=cam_id,
+        address=cfg.get("address", "Alamat tidak diketahui"),
+        city=cfg.get("city", ""),
+        district=cfg.get("district", "")
+    ) for cam_id, cfg in CAMCFG.items()
+}
+
+urgency_engine = UrgencyEngine(cameras=camera_metas)
 
 @app.get("/detector/tracking_data/<cam_id>")
 def get_tracking_data(cam_id):
@@ -539,6 +584,10 @@ def stream_proxy(subpath=None):
 
 if __name__ == "__main__":
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
+    scoring_thread = threading.Thread(target=run_urgency_scoring_loop, daemon=True)
+    scoring_thread.start()
+
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "5001"))
     debug = os.environ.get("FLASK_DEBUG", "true").lower() == "true"
