@@ -222,7 +222,7 @@ if __name__ == "__main__":
     video_path = "illegal_2.mp4"  
     zone_jsons = ["zona_enhanced.json", "zona_vietnam1.json"]
     
-    model_inference_path = "driver_exit_model.pkl"  
+    model_inference_path = "car_open_detection.pkl"  
 
     try:
         with open(model_inference_path, 'rb') as f:

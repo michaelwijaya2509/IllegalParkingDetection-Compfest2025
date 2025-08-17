@@ -11,8 +11,11 @@ import logging
 from collections import deque
 import yt_dlp
 import requests
+import pickle
 from urllib.parse import urlparse, urljoin
 from cnn_macet import check_macet_cnn
+from cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
+
 
 import cv2
 import numpy as np
@@ -40,6 +43,17 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})  # Izinkan semua origin untuk semua route
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("horusai.app")
+
+MODEL_EVENT_PATH = resolve_path("car_open_detection.pkl")
+MODEL_EVENT_INFERENCE = None
+
+try:
+    with open(MODEL_EVENT_PATH, "rb") as f:
+        MODEL_EVENT_INFERENCE = pickle.load(f)
+        log.info("Model loaded successfully from %s", MODEL_EVENT_PATH)
+except:
+    log.error("Failed to load model from %s", MODEL_EVENT_PATH)
+
 
 # ------------------------ SSE infra (Tidak diubah) --------------------------
 history_events = deque(maxlen=int(os.environ.get("SSE_HISTORY_MAX", "500")))
@@ -105,6 +119,20 @@ def load_zones(paths: list[str]):
             raise ValueError(f"Zona format tidak dikenal: {p}")
     return polys
 
+def run_driver_exit_check(cam_id, track_id, frames, model, track_state_obj):
+
+    log.info(f"[THREAD] Memproses {len(frames)} frames untuk track ID {track_id}...")
+    
+    is_driver_exit = check_driver_exit(frames, model)
+    
+    if is_driver_exit:
+        log.info(f"[THREAD] Terdeteksi supir keluar untuk track ID: {track_id}")
+        track_state_obj["driver_exited"] = True
+    else:
+        log.info(f"[THREAD] Tidak terdeteksi supir keluar untuk track ID: {track_id}")
+
+    track_state_obj["event_check_running"] = False
+
 class DetectorWorker(threading.Thread):
     def __init__(self, cam_id: str, stream_url: str, zone_files: list[str], model_path: str = "yolo11n.pt", device: str | None = None):
         super().__init__(daemon=True)
@@ -159,7 +187,6 @@ class DetectorWorker(threading.Thread):
             with self.current_frame_lock:
                 self.current_frame = frame.copy()
 
-            # 1) Deteksi
             results = self.model(frame, verbose=False)[0]
             detections = []
             for box in results.boxes:
@@ -169,7 +196,6 @@ class DetectorWorker(threading.Thread):
                     w, h = x2 - x1, y2 - y1
                     detections.append(([x1, y1, w, h], float(box.conf[0]), cls_id))
 
-            # 2) Tracking
             try:
                 tracks = self.tracker.update_tracks(detections, frame=frame)
             except Exception as e:
@@ -179,7 +205,6 @@ class DetectorWorker(threading.Thread):
             now_ts = time.time()
             current_tracks_for_frontend = []
 
-            # 3) Rule
             for tr in tracks:
                 if not tr.is_confirmed():
                     continue
@@ -204,62 +229,68 @@ class DetectorWorker(threading.Thread):
                         self.track_state.pop(tr.track_id, None)
                     continue
 
-                # ambil / buat state track lebih dulu
                 st = self.track_state.get(tr.track_id)
                 if st is None:
                     st = {
-                        "last_pos": (cx, cy),
-                        "stationary_s": 0.0,
-                        "last_ts": now_ts,
-                        "zone_name": zone_name_hit,
-                        "exclude_from_detection": False
+                        "last_pos": (cx, cy), "stationary_s": 0.0, "last_ts": now_ts,
+                        "zone_name": zone_name_hit, "exclude_from_detection": False,
+                        "frame_sequence": [], "event_check_running": False,
+                        "driver_exited": False, "violation_reported": False
                     }
                     self.track_state[tr.track_id] = st
 
-                # kalau sudah ditandai exclude, skip
-                if st.get("exclude_from_detection", False) and len(detections) >= 8:
-                    continue
-                elif st.get("exclude_from_detection", False) and len(detections) < 8:
-                    print("🔴🔴 Kendaraan dalam frame < 8, cek ulang macet")
-                    st['exclude_from_detection'] = False
-
-                # cek macet (kalau ≥8 kendaraan)
+                TARGET_FRAMES_FOR_EVENT = 16
+                if len(st["frame_sequence"]) < TARGET_FRAMES_FOR_EVENT:
+                    cropped_frame = crop_with_margin(frame, tr.to_ltrb())
+                    st["frame_sequence"].append(cropped_frame)
+                
+                is_traffic_jam = False
                 if len(detections) >= 8:
-                    print("-- Terdeteksi lebih dari 8 kendaraan --")
-                    print("Banyak kendaraan dalam frame:", len(detections))
                     isMacet = check_macet_cnn(frame)
-                    print("CNN isMacet:", isMacet)
                     if isMacet:
-                        print("🚗 Macet terdeteksi, timer dimatikan")
-                        st["exclude_from_detection"] = True
-                        st["stationary_s"] = 0.0
-                        continue
+                        is_traffic_jam = True
+                        # kalo supir belum keluar, jeda timer dengan skip ke iterasi berikutnya
+                        if not st.get("driver_exited", False):
+                            print(f"Macet terdeteksi, timer untuk track ID {tr.track_id} dijeda.")
+                            st["last_ts"] = now_ts 
+                            continue 
 
                 dx, dy = cx - st["last_pos"][0], cy - st["last_pos"][1]
                 dist = sqrt(dx * dx + dy * dy)
                 dt_s = now_ts - st["last_ts"]
+
                 if dist < MOVE_PX_THRESH:
-                    st["stationary_s"] += dt_s
+                    st["stationary_s"] += dt_s 
                 else:
                     st["stationary_s"], st["last_pos"] = 0.0, (cx, cy)
+                    st["frame_sequence"].clear()
+                    st["driver_exited"] = False
+                    st["event_check_running"] = False
+                    st["violation_reported"] = False
                 st["last_ts"] = now_ts
                 st["zone_name"] = zone_name_hit
 
-                is_close_to_violation = st["stationary_s"] >= MIN_STOP_S * 0.8
-                is_violation = st["stationary_s"] >= MIN_STOP_S
+                # Thread cek supir keluar
+                if (len(st["frame_sequence"]) >= TARGET_FRAMES_FOR_EVENT and 
+                    not st["event_check_running"] and 
+                    not st["driver_exited"] and 
+                    MODEL_EVENT_INFERENCE):
+                    st["event_check_running"] = True
+                    log.info(f"Mulai pengecekan supir keluar untuk track id: {tr.track_id}")
+                    checker_thread = threading.Thread(
+                        target=run_driver_exit_check,
+                        args=(self.cam_id, tr.track_id, list(st["frame_sequence"]), MODEL_EVENT_INFERENCE, st)
+                    )
+                    checker_thread.start()
 
-                current_tracks_for_frontend.append({
-                    "track_id": tr.track_id,
-                    "bbox": [x1, y1, x2, y2],
-                    "class_name": cls_name,
-                    "stationary_s": int(st["stationary_s"]),
-                    "is_close_to_violation": is_close_to_violation,
-                    "is_violation": is_violation,
-                })
+                is_violation_by_time = st["stationary_s"] >= MIN_STOP_S
 
-                # 4) Trigger pelanggaran (logic SSE tetap sama)
-                if is_violation:
-                    print("‼️ Terdeteksi sebuah violation ‼️")
+                if is_violation_by_time and not st.get("violation_reported", False):
+                    st["violation_reported"] = True
+
+                    reason = "Supir Keluar" if st.get("driver_exited", False) else "Waktu Parkir > 5 Menit"
+                    print(f"Terdeteksi ILLEGAL PARKING (Alasan: {reason})")
+
                     snap_path = os.path.join(SNAP_DIR, f"{self.cam_id}_{tr.track_id}_{int(now_ts)}.jpg")
                     snap_url = None
                     try:
@@ -271,18 +302,23 @@ class DetectorWorker(threading.Thread):
                         pass
 
                     event_payload = {
-                        "type": "violation",
-                        "cam_id": self.cam_id,
-                        "track_id": tr.track_id,
-                        "class": cls_name,
-                        "duration_s": int(st["stationary_s"]),
-                        "zone_name": st["zone_name"],
-                        "ts": int(now_ts),
-                        "snapshot_path": snap_path,
+                        "type": "violation", "cam_id": self.cam_id, "track_id": tr.track_id,
+                        "class": cls_name, "duration_s": int(st["stationary_s"]),
+                        "zone_name": st["zone_name"], "ts": int(now_ts),
+                        "reason": reason, "snapshot_path": snap_path,
                         "snapshot_url": snap_url
                     }
                     broadcast(event_payload)
-                    st["stationary_s"] = 0.0
+                
+                is_driver_locked = st.get("driver_exited", False)
+                current_tracks_for_frontend.append({
+                    "track_id": tr.track_id, "bbox": [x1, y1, x2, y2], "class_name": cls_name,
+                    "stationary_s": int(st["stationary_s"]),
+                    "is_close_to_violation": st["stationary_s"] >= MIN_STOP_S * 0.8,
+                    "is_violation": st.get("violation_reported", False),
+                    "is_driver_locked": is_driver_locked,
+                    "is_paused_by_traffic": is_traffic_jam and not is_driver_locked
+                })
 
             with self.frontend_data_lock:
                 self.frontend_tracking_data["tracks"] = current_tracks_for_frontend

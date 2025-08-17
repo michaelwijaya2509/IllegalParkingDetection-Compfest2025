@@ -18,7 +18,7 @@ venv/
 *.mp4
 *.jpg
 
-# MLflow and model artifacts
+# MLflowe and model artifacts
 mlruns/
 mlflow.db
 models/
@@ -27,4 +27,5 @@ results/
 # Datasets and generated folders
 event/
 illegal/
-Backend/data/videos/
+
+*.pkl
