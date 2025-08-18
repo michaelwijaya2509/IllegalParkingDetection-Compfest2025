@@ -8,20 +8,27 @@ export async function GET(req: NextRequest) {
 
   try {
     const upstream = await fetch(target);
-    const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+    const contentType =
+      upstream.headers.get("content-type") || "application/octet-stream";
 
-    if (contentType.includes("application/vnd.apple.mpegurl") || target.endsWith(".m3u8")) {
+    if (
+      contentType.includes("application/vnd.apple.mpegurl") ||
+      target.endsWith(".m3u8")
+    ) {
       let playlist = await upstream.text();
 
       const baseUrl = target.substring(0, target.lastIndexOf("/") + 1);
 
-      playlist = playlist.split("\n").map(line => {
-        if (line && !line.startsWith("#")) {
-          const absoluteUrl = new URL(line, baseUrl).toString();
-          return `/api/stream?url=${encodeURIComponent(absoluteUrl)}`;
-        }
-        return line;
-      }).join("\n");
+      playlist = playlist
+        .split("\n")
+        .map((line) => {
+          if (line && !line.startsWith("#")) {
+            const absoluteUrl = new URL(line, baseUrl).toString();
+            return `/api/stream?url=${encodeURIComponent(absoluteUrl)}`;
+          }
+          return line;
+        })
+        .join("\n");
 
       return new Response(playlist, {
         status: upstream.status,
@@ -43,7 +50,7 @@ export async function GET(req: NextRequest) {
         "Content-Type": contentType,
       },
     });
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (err) {
     return new Response("Failed to fetch target URL", { status: 500 });
   }

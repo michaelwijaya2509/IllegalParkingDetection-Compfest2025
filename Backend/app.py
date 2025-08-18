@@ -9,17 +9,18 @@ import time
 import datetime
 import os
 import logging
-from collections import deque
+from collections import deque, Counter
 import yt_dlp
 import requests
+from slugify import slugify 
 import pickle
 
 from urllib.parse import urlparse, urljoin
 from cnn_macet import check_macet_cnn
 from cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
-from urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta
+from urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta, ScoredEvent
 
-
+from datetime import datetime, timedelta
 from dataclasses import asdict
 import cv2
 import numpy as np
@@ -27,6 +28,18 @@ from math import sqrt
 
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
+
+import firebase_admin
+from firebase_admin import credentials, db
+
+# ======================== Firebase Configurations ====================== #
+cred = credentials.Certificate("firebase-credentials.json") 
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://horus-ai-edcc1-default-rtdb.asia-southeast1.firebasedatabase.app/'
+})
+
+# bikin reference ke database
+fb_db_ref = db.reference()
 
 # ======================== Path Helpers ========================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -99,11 +112,12 @@ def events():
     return Response(stream(), mimetype="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 # ------------------------ Rule-based detector -----------------
+# ini list of workers yang berbentuk dictionary dan setiap worker adalah object dari DetectorWorker class
 workers: dict[str, "DetectorWorker"] = {}
 SNAP_DIR = resolve_path(os.environ.get("SNAP_DIR", "snaps"))
 os.makedirs(SNAP_DIR, exist_ok=True)
-MOVE_PX_THRESH = int(os.environ.get("MOVE_PX_THRESH", "10"))
-MIN_STOP_S = float(os.environ.get("MIN_STOP_S", "300"))
+MOVE_PX_THRESH = int(os.environ.get("MOVE_PX_THRESH", "30"))
+MIN_STOP_S = float(os.environ.get("MIN_STOP_S", "10"))
 TARGET_CLASSES = set(os.environ.get("TARGET_CLASSES", "car,truck,bus").split(','))
 
 def point_in_polygon(x: int, y: int, polygon: list[list[int]]):
@@ -138,27 +152,7 @@ def run_driver_exit_check(cam_id, track_id, frames, model, track_state_obj):
     track_state_obj["event_check_running"] = False
 
 
-
-def run_urgency_scoring_loop():
-
-    while True:
-        try:
-            urgency_engine.aggregate_and_score(window_s=10)
-            
-            scored_events = urgency_engine.get_ready()
-            
-            if scored_events:
-                log.info(f"Broadcasting {len(scored_events)} scored event(s).")
-                for scored_event in scored_events:
-                    broadcast({
-                        "type": "scored_violation",
-                        "data": asdict(scored_event) 
-                    })
-        except Exception as e:
-            log.error(f"Error in urgency scoring loop: {e}")
-        
-        time.sleep(10)
-
+# Setiap worker adalah object dari DetectorWorker. Setiap worker akan menangani satu kamera
 
 class DetectorWorker(threading.Thread):
     def __init__(self, cam_id: str, stream_url: str, zone_files: list[str], model_path: str = "yolo11n.pt", device: str | None = None):
@@ -171,7 +165,7 @@ class DetectorWorker(threading.Thread):
         self.device = device
         self.model_path = model_path
         self.track_state: dict[int, dict] = {}
-        self.tracker = DeepSort(max_age=60, n_init=3)
+        self.tracker = DeepSort(max_age=200, n_init=3)
         self.model: YOLO | None = None
         self.label_map: dict[int, str] = {}
         self.current_frame = None
@@ -202,7 +196,7 @@ class DetectorWorker(threading.Thread):
         if not cap.isOpened():
             broadcast({"type": "stream_error", "cam_id": self.cam_id, "msg": "cannot open stream"}, also_store=False)
             return
-
+    
         self.frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -210,11 +204,16 @@ class DetectorWorker(threading.Thread):
             ok, frame = cap.read()
             if not ok or frame is None:
                 break
+            
+            if self.frame_width == 0 or self.frame_height == 0:
+                self.frame_height, self.frame_width, _ = frame.shape
+
 
             with self.current_frame_lock:
                 self.current_frame = frame.copy()
 
             results = self.model(frame, verbose=False)[0]
+            #list of tupples ini
             detections = []
             for box in results.boxes:
                 cls_id = int(box.cls[0])
@@ -241,6 +240,7 @@ class DetectorWorker(threading.Thread):
                 cls_id = tr.det_class
                 cls_name = self.label_map.get(cls_id, "unknown")
 
+                # kalo vehicle yg kedetect bukan target class, gausah di track
                 if cls_name not in TARGET_CLASSES:
                     if tr.track_id in self.track_state:
                         self.track_state.pop(tr.track_id, None)
@@ -251,6 +251,7 @@ class DetectorWorker(threading.Thread):
                     if point_in_polygon(cx, cy, z["polygon"]):
                         zone_name_hit = z["name"]
                         break
+                # kalo ga ada bagian dari zona yg kena, maka vehicle itu gausah di track
                 if zone_name_hit is None:
                     if tr.track_id in self.track_state:
                         self.track_state.pop(tr.track_id, None)
@@ -259,10 +260,15 @@ class DetectorWorker(threading.Thread):
                 st = self.track_state.get(tr.track_id)
                 if st is None:
                     st = {
-                        "last_pos": (cx, cy), "stationary_s": 0.0, "last_ts": now_ts,
-                        "zone_name": zone_name_hit, "exclude_from_detection": False,
-                        "frame_sequence": [], "event_check_running": False,
-                        "driver_exited": False, "violation_reported": False
+                        "last_pos": (cx, cy),
+                        "stationary_s": 0.0,
+                        "last_ts": now_ts,
+                        "zone_name": zone_name_hit,
+                        "exclude_from_detection": False,
+                        "frame_sequence": [],
+                        "event_check_running": False,
+                        "driver_exited": False,
+                        "violation_reported": False
                     }
                     self.track_state[tr.track_id] = st
 
@@ -288,6 +294,7 @@ class DetectorWorker(threading.Thread):
 
                 if dist < MOVE_PX_THRESH:
                     st["stationary_s"] += dt_s 
+                
                 else:
                     st["stationary_s"], st["last_pos"] = 0.0, (cx, cy)
                     st["frame_sequence"].clear()
@@ -341,11 +348,28 @@ class DetectorWorker(threading.Thread):
                         extra={"track_id": tr.track_id}
                     )
 
-                    urgency_engine.ingest(violation_event, is_dense=is_traffic_jam)
+                    scored_events = urgency_engine.score_events([(violation_event, is_traffic_jam)])
+                    if scored_events:
+                        scored = scored_events[0]
+                        scored_dict = asdict(scored)
+
+                        try:
+                            fb_db_ref.child('PendingIncidents').child(event_id).set(scored_dict)
+                            log.info(f"Successfully pushed incident {event_id} to Firebase. ")
+                        except:
+                            log.error(f"Failed to push incident {event_id} to Firebase: {e}")
+
+                        broadcast({"type": "violation_event", "data": scored_dict}, also_store=True)
+
+                        print("LLM Output: ", scored)
+                    
+                
                           
                 is_driver_locked = st.get("driver_exited", False)
                 current_tracks_for_frontend.append({
-                    "track_id": tr.track_id, "bbox": [x1, y1, x2, y2], "class_name": cls_name,
+                    "track_id": tr.track_id, 
+                    "bbox": [x1, y1, x2, y2], 
+                    "class_name": cls_name,
                     "stationary_s": int(st["stationary_s"]),
                     "is_close_to_violation": st["stationary_s"] >= MIN_STOP_S * 0.8,
                     "is_violation": st.get("violation_reported", False),
@@ -469,9 +493,10 @@ def detector_status():
         "sse_clients": len(clients),
     })
 
+# Route buat return list of cameras ke frontend berdasarkan camera di cameras_json
 @app.get("/cameras")
 def cameras():
-    camera_list = []
+    camera_list = []    
     for cam_id, cfg in CAMCFG.items():
         is_running = cam_id in workers
         camera_list.append({
@@ -480,6 +505,63 @@ def cameras():
             "stream_endpoint": f"/video/{cam_id}" if is_running else None
         })
     return jsonify(camera_list)
+
+
+
+@app.post("/cameras/add")
+def add_camera():
+    global CAMCFG
+    try:
+        data = request.get_json(force=True)
+
+        cam_id = f"{slugify(data['cameraName'])}-{int(time.time())}"
+        
+        zones_dir = resolve_path("data/zones")
+        os.makedirs(zones_dir, exist_ok=True)
+        zone_filename = f"{cam_id}-zone.json"
+        zone_filepath = os.path.join(zones_dir, zone_filename)
+        
+        polygon_data = [[p['x'], p['y']] for p in data['zonePolygon']]
+        
+        zone_content = {
+            "name": f"{data['cameraName']} Zone",
+            "polygon": polygon_data
+        }
+        with open(zone_filepath, "w", encoding="utf-8") as f:
+            json.dump(zone_content, f, indent=2)
+        log.info("Saved new zone file to: %s", zone_filepath)
+
+
+        new_camera_config = {
+            "cam_id": cam_id,
+            "name": data["cameraName"],
+            "address": data["address"],
+            "stream_url": data["streamUrl"],
+            "zones": [f"data/zones/{zone_filename}"] 
+        }
+
+        with open(CAMCFG_PATH, "r+", encoding="utf-8") as f:
+            # Read all cameras
+            all_cameras = json.load(f)
+            all_cameras.append(new_camera_config)
+
+            f.seek(0)
+
+            json.dump(all_cameras, f, indent=2)
+  
+            f.truncate()
+        
+        CAMCFG = {c["cam_id"]: c for c in all_cameras}
+        log.info("Successfully added new camera '%s' and reloaded config.", cam_id)
+        
+        return jsonify({"ok": True, "cam_id": cam_id, "message": "Camera added successfully."})
+
+    except Exception as e:
+        log.exception("Failed to add new camera: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+    
+
+
 
 @app.post("/cameras/reload")
 def cameras_reload():
@@ -491,6 +573,146 @@ def cameras_reload():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+# ------------------------ Incidents API --------------------- 
+
+@app.get("/incidents/pending")
+def get_pending_incidents():
+    try:
+        incidents = fb_db_ref.child('PendingIncidents').get()
+        if not incidents:
+            return jsonify([])
+        return jsonify(list(incidents.values()))
+    except Exception as e:
+        log.error(f"Error fetching pending incidents from Firebase: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.get("/incidents/approved")
+def get_approved_incidents():
+    try:
+        incidents = fb_db_ref.child('ApprovedIncidents').get()
+        if not incidents:
+            return jsonify([])
+        return jsonify(list(incidents.values()))
+    except Exception as e:
+        log.error(f"Error fetching approved incidents from Firebase: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.post("/incident/accept")
+def accept_incident():
+    payload = request.get_json(force=True)
+    incident_data = payload.get("incident_data")
+    if not incident_data or "event" not in incident_data or "event_id" not in incident_data["event"]:
+        return jsonify({"ok": False, "error": "Invalid incident data"}), 400
+
+    incident_id = incident_data["event"]["event_id"]
+    try:
+        fb_db_ref.child('ApprovedIncidents').child(incident_id).set(incident_data)
+        fb_db_ref.child('PendingIncidents').child(incident_id).delete()
+        return jsonify({"ok": True, "incident_id": incident_id})
+    except Exception as e:
+        log.error(f"Error accepting incident {incident_id}: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.post("/incident/decline")
+def decline_incident():
+    payload = request.get_json(force=True)
+    incident_data = payload.get("incident_data")
+    if not incident_data or "event" not in incident_data or "event_id" not in incident_data["event"]:
+        return jsonify({"ok": False, "error": "Invalid incident data"}), 400
+        
+    incident_id = incident_data["event"]["event_id"]
+    try:
+        fb_db_ref.child('DeclinedIncidents').child(incident_id).set(incident_data)
+        fb_db_ref.child('PendingIncidents').child(incident_id).delete()
+        return jsonify({"ok": True, "incident_id": incident_id})
+    except Exception as e:
+        log.error(f"Error declining incident {incident_id}: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+    
+
+# ================== START: New Analytics Endpoint ==================
+@app.get("/analytics/summary")
+def get_analytics_summary():
+    try:
+
+        all_incidents_dict = fb_db_ref.child('ApprovedIncidents').get()
+        if not all_incidents_dict:
+            return jsonify({
+                "totalApprovedIncidents": 0, "todayApprovedIncidents": 0, "activeCameras": len(workers),
+                "incidentTrends": [], "locationHotspots": [], "violationTypes": [], "commonReasons": []
+            })
+
+        all_incidents = list(all_incidents_dict.values())
+        now = datetime.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+      
+        total_approved_incidents = len(all_incidents)
+        today_approved_incidents = 0
+        
+      
+        incident_dates = []
+        locations = []
+        categories = []
+        reasons = []
+        
+        for incident in all_incidents:
+            try:
+                # Cek insiden hari ini
+                incident_time = datetime.fromisoformat(incident["event"]["started_at"])
+                if incident_time >= today_start:
+                    today_approved_incidents += 1
+                
+                incident_dates.append(incident_time.date())
+                
+                locations.append(incident["address"])
+                
+                if "llm_data" in incident and "category" in incident["llm_data"]:
+                    categories.append(incident["llm_data"]["category"])
+                
+                if "llm_data" in incident and "reasons" in incident["llm_data"]:
+                    reasons.extend(incident["llm_data"]["reasons"])
+            except (KeyError, TypeError, ValueError) as e:
+                log.warning(f"Skipping malformed incident in analytics: {e}")
+
+
+        # 7 hari terakhir
+        date_counts = Counter(incident_dates)
+        trends = []
+        for i in range(7):
+            date = (now - timedelta(days=i)).date()
+            trends.append({"date": date.isoformat(), "count": date_counts.get(date, 0)})
+        trends.reverse()
+
+        # 5 Lokasi Hotspot Teratas
+        location_counts = Counter(locations)
+        hotspots = [{"location": loc, "count": count} for loc, count in location_counts.most_common(5)]
+        
+        # Tipe Pelanggaran Teratas
+        category_counts = Counter(categories)
+        violation_types = [{"category": cat, "count": count} for cat, count in category_counts.most_common(5)]
+        
+        # Alasan Pelanggaran Teratas
+        reason_counts = Counter(reasons)
+        common_reasons = [{"reason": r, "count": count} for r, count in reason_counts.most_common(5)]
+        
+        # Gabungan semua data
+        summary = {
+            "totalApprovedIncidents": total_approved_incidents,
+            "todayApprovedIncidents": today_approved_incidents,
+            "activeCameras": len(workers),
+            "incidentTrends": trends,
+            "locationHotspots": hotspots,
+            "violationTypes": violation_types,
+            "commonReasons": common_reasons
+        }
+        
+        return jsonify(summary)
+        
+    except Exception as e:
+        log.exception("Error generating analytics summary: %s", e)
+        return jsonify({"error": str(e)}), 500
+    
 # ------------------------ API: misc --------------------------
 @app.get("/snaps/<path:name>")
 def snaps(name):
@@ -584,10 +806,6 @@ def stream_proxy(subpath=None):
 
 if __name__ == "__main__":
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-
-    scoring_thread = threading.Thread(target=run_urgency_scoring_loop, daemon=True)
-    scoring_thread.start()
-
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "5001"))
     debug = os.environ.get("FLASK_DEBUG", "true").lower() == "true"

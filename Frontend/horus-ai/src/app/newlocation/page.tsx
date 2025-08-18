@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, MouseEvent, ChangeEvent } from "react";
+import { useState, useRef, MouseEvent, ChangeEvent, FormEvent } from "react";
 import Navigation from "@/components/Navigation";
 import HlsPlayer from "@/components/HLSPlayer";
 import {
@@ -118,6 +118,13 @@ export default function AddNewLocation() {
   const [previewFrame, setPreviewFrame] = useState<string | null>(null);
   const [zonePoints, setZonePoints] = useState<Point[]>([]);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
+  const formRef = useRef<HTMLFormElement>(null);
 
   const handleResolveUrl = async () => {
     if (!userInputUrl) return;
@@ -165,23 +172,67 @@ export default function AddNewLocation() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    setSubmitStatus(null);
+
+    if (zonePoints.length < 3) {
+      setSubmitStatus({
+        success: false,
+        message: "Please define a zone with at least 3 points.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const formData = new FormData(formRef.current!);
     const data = Object.fromEntries(formData.entries());
+
     const finalData = {
       ...data,
       streamUrl: userInputUrl,
       zonePolygon: zonePoints,
     };
-    console.log("Submitting new camera data:", finalData);
-    alert("New camera submitted!");
 
-    e.currentTarget.reset();
-    setUserInputUrl("");
-    setResolvedStreamUrl("");
-    setPreviewFrame(null);
-    setZonePoints([]);
+    try {
+      const backendUrl = "http://localhost:5001";
+      const response = await fetch(`${backendUrl}/cameras/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.ok) {
+        setSubmitStatus({
+          success: true,
+          message:
+            "Camera added successfully! You can now view it in the Live Feed.",
+        });
+
+        formRef.current?.reset();
+
+        setUserInputUrl("");
+        setResolvedStreamUrl("");
+        setPreviewFrame(null);
+        setZonePoints([]);
+      } else {
+        setSubmitStatus({
+          success: false,
+          message: result.error || "An unknown error occurred.",
+        });
+      }
+    } catch (error) {
+      console.error("Submission error:", error);
+      setSubmitStatus({
+        success: false,
+        message: "Could not connect to the backend to save the camera.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -198,7 +249,7 @@ export default function AddNewLocation() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit}>
+          <form ref={formRef} onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-tile1 border border-gray-700 rounded-lg p-8 space-y-6">
                 <div>
@@ -267,14 +318,29 @@ export default function AddNewLocation() {
                     <p className="text-red-500 text-xs mt-2">{errorMessage}</p>
                   )}
                 </div>
+
                 <div className="pt-4">
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300"
+                    disabled={isSubmitting}
+                    className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:opacity-60"
                   >
-                    <FiPlusCircle className="mr-2" />
-                    Add Camera to System
+                    {isSubmitting ? (
+                      <FiLoader className="animate-spin mr-2" />
+                    ) : (
+                      <FiPlusCircle className="mr-2" />
+                    )}
+                    {isSubmitting ? "Saving Camera..." : "Add Camera to System"}
                   </button>
+                  {submitStatus && (
+                    <p
+                      className={`text-sm mt-4 text-center ${
+                        submitStatus.success ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {submitStatus.message}
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -8,7 +8,9 @@ import {
   FiWifi,
   FiWifiOff,
   FiPlayCircle,
+  FiLoader,
 } from "react-icons/fi";
+import HlsPlayer from "@/components/HLSPlayer";
 
 interface Camera {
   cam_id: string;
@@ -50,6 +52,9 @@ export default function LiveFeed() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [trackingData, setTrackingData] = useState<TrackingData | null>(null);
 
+  const [resolvedHlsUrl, setResolvedHlsUrl] = useState<string | null>(null);
+  const [isHlsLoading, setIsHlsLoading] = useState(false);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLImageElement>(null);
 
@@ -59,8 +64,8 @@ export default function LiveFeed() {
         const response = await fetch(`${API_BASE_URL}/cameras`);
         const data: Camera[] = await response.json();
         setCameras(data);
-        if (data.length > 0) {
-          setSelectedCamera(data[0]);
+        if (data.length > 0 && !selectedCamera) {
+          handleSelectCamera(data[0]);
         }
       } catch (error) {
         console.error("Failed to fetch cameras:", error);
@@ -69,20 +74,62 @@ export default function LiveFeed() {
     fetchCameras();
   }, []);
 
+  useEffect(() => {
+    const resolveUrlForPlayer = async () => {
+      if (
+        !selectedCamera ||
+        selectedCamera.cam_id === "pasteur1" ||
+        selectedCamera.cam_id === "viet1"
+      ) {
+        setResolvedHlsUrl(null);
+        return;
+      }
+
+      setIsHlsLoading(true);
+      setResolvedHlsUrl(null);
+      try {
+        const response = await fetch(`${API_BASE_URL}/detector/resolve_url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: selectedCamera.stream_url }),
+        });
+        const data = await response.json();
+        if (data.ok) {
+          setResolvedHlsUrl(data.stream_url);
+        } else {
+          console.error("Failed to resolve HLS URL:", data.error);
+        }
+      } catch (error) {
+        console.error("Error resolving HLS URL:", error);
+      } finally {
+        setIsHlsLoading(false);
+      }
+    };
+
+    if (selectedCamera?.is_running) {
+      resolveUrlForPlayer();
+    }
+  }, [selectedCamera?.cam_id, selectedCamera?.is_running]);
+
   const drawOverlays = (data: TrackingData) => {
     const canvas = canvasRef.current;
-    const video = videoRef.current;
-    if (!canvas || !video) return;
+    const videoElement = videoRef.current;
+    if (!canvas || (!videoElement && data.video_width === 0)) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const videoRect = video.getBoundingClientRect();
-    canvas.width = videoRect.width;
-    canvas.height = videoRect.height;
+    const videoRect = videoElement?.getBoundingClientRect();
+    const displayWidth =
+      videoRect?.width || canvas.parentElement?.clientWidth || 0;
+    const displayHeight =
+      videoRect?.height || canvas.parentElement?.clientHeight || 0;
 
-    const scaleX = canvas.width / (data.video_width || 1);
-    const scaleY = canvas.height / (data.video_height || 1);
+    canvas.width = displayWidth;
+    canvas.height = displayHeight;
+
+    const scaleX = displayWidth / (data.video_width || 1);
+    const scaleY = displayHeight / (data.video_height || 1);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -92,15 +139,11 @@ export default function LiveFeed() {
       ctx.beginPath();
       zone.polygon.forEach((point, index) => {
         const [x, y] = point;
-        if (index === 0) {
-          ctx.moveTo(x * scaleX, y * scaleY);
-        } else {
-          ctx.lineTo(x * scaleX, y * scaleY);
-        }
+        if (index === 0) ctx.moveTo(x * scaleX, y * scaleY);
+        else ctx.lineTo(x * scaleX, y * scaleY);
       });
       ctx.closePath();
       ctx.stroke();
-
       ctx.fillStyle = "yellow";
       ctx.font = "14px Arial";
       ctx.fillText(
@@ -125,7 +168,6 @@ export default function LiveFeed() {
         (x2 - x1) * scaleX,
         (y2 - y1) * scaleY
       );
-
       ctx.fillStyle = "white";
       ctx.font = "12px Arial";
       const label = `${track.class_name}:${track.track_id} (${track.stationary_s}s)`;
@@ -138,7 +180,6 @@ export default function LiveFeed() {
       setTrackingData(null);
       return;
     }
-
     const intervalId = setInterval(async () => {
       try {
         const response = await fetch(
@@ -147,13 +188,11 @@ export default function LiveFeed() {
         const data: TrackingData = await response.json();
         setTrackingData(data);
       } catch (error) {
-        console.error("Failed to fetch tracking data:", error);
         setTrackingData(null);
       }
     }, 500);
-
     return () => clearInterval(intervalId);
-  }, [selectedCamera]);
+  }, [selectedCamera?.cam_id, selectedCamera?.is_running]);
 
   useEffect(() => {
     if (trackingData) {
@@ -163,6 +202,9 @@ export default function LiveFeed() {
 
   const startCameraDetector = async (cam_id: string) => {
     try {
+      const camToStart = cameras.find((c) => c.cam_id === cam_id);
+      if (camToStart) setSelectedCamera(camToStart);
+
       await fetch(`${API_BASE_URL}/detector/start_by_id`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -188,10 +230,13 @@ export default function LiveFeed() {
     }
   };
 
+  const isLocalCamera =
+    selectedCamera?.cam_id === "pasteur1" || selectedCamera?.cam_id === "viet1";
+
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
-      <main className="pt-20 p-20 mt-10">
+      <main className="pt-20 p-12 mt-10">
         <div className="max-w-10xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
@@ -249,36 +294,32 @@ export default function LiveFeed() {
                       {selectedCamera?.address}
                     </p>
                   </div>
-                  <button
-                    onClick={() => setIsFullscreen(!isFullscreen)}
-                    className="p-2 bg-tile2 hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    {isFullscreen ? (
-                      <FiMinimize2 className="w-5 h-5 text-white" />
-                    ) : (
-                      <FiMaximize2 className="w-5 h-5 text-white" />
-                    )}
-                  </button>
                 </div>
 
-                <div
-                  className={`relative bg-black rounded-lg overflow-hidden ${
-                    isFullscreen
-                      ? "fixed inset-0 z-50 rounded-none"
-                      : "aspect-video"
-                  }`}
-                >
-                  {selectedCamera?.is_running &&
-                  selectedCamera?.stream_endpoint ? (
+                <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                  {selectedCamera?.is_running ? (
                     <>
-                      <img
-                        ref={videoRef}
-                        src={`${API_BASE_URL}${
-                          selectedCamera.stream_endpoint
-                        }?t=${new Date().getTime()}`}
-                        alt="Live video feed"
-                        className="absolute top-0 left-0 w-full h-full object-contain"
-                      />
+                      {isLocalCamera ? (
+                        <img
+                          ref={videoRef}
+                          src={`${API_BASE_URL}${
+                            selectedCamera.stream_endpoint
+                          }?t=${new Date().getTime()}`}
+                          alt="Live video feed"
+                          className="absolute top-0 left-0 w-full h-full object-contain"
+                        />
+                      ) : isHlsLoading ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FiLoader className="w-10 h-10 text-gray-400 animate-spin" />
+                        </div>
+                      ) : resolvedHlsUrl ? (
+                        <HlsPlayer src={resolvedHlsUrl} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          Failed to load stream.
+                        </div>
+                      )}
+
                       <canvas
                         ref={canvasRef}
                         className="absolute top-0 left-0 w-full h-full"
@@ -290,30 +331,12 @@ export default function LiveFeed() {
                         <FiWifiOff className="w-16 h-16 text-gray-500 mx-auto mb-4" />
                         <p className="text-gray-400">
                           {selectedCamera
-                            ? "Camera offline. Click to start."
+                            ? "Camera offline. Click list to start."
                             : "Select a camera to view feed."}
                         </p>
                       </div>
                     </div>
                   )}
-
-                  {isFullscreen && (
-                    <button
-                      onClick={() => setIsFullscreen(false)}
-                      className="absolute top-4 right-4 p-2 bg-black bg-opacity-50 hover:bg-opacity-75 rounded-lg transition-colors"
-                    >
-                      <FiMinimize2 className="w-6 h-6 text-white" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-tile2 p-3 rounded-lg">
-                    <p className="text-gray-400 text-xs">Status</p>
-                    <p className="text-white font-medium">
-                      {selectedCamera?.is_running ? "Online" : "Offline"}
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>

@@ -97,7 +97,7 @@ def geocode_address(address: str) -> Optional[Dict[str, float]]:
 
 def fetch_overpass(lat: float, lon: float, radius_m: int) -> Dict[str, Any]:
     ql = OVERPASS_QL.format(r=radius_m, lat=lat, lon=lon)
-    r = requests.post(OVERPASS, data=ql, headers=HEADERS_OSM, timeout=60)
+    r = requests.post(OVERPASS, data=ql, headers=HEADERS_OSM, timeout=120)
     r.raise_for_status()
     return r.json()
 
@@ -209,7 +209,7 @@ class UrgencyEngine:
         self._osm_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}   
         self._cache: Dict[str, ScoredEvent] = {}
 
-    # Public API buat dipanggil dari app.py
+
     def ingest(self, event: ViolationEvent, is_dense: bool = False) -> None:
         self._in_q.put((event, is_dense))
 
@@ -257,10 +257,12 @@ class UrgencyEngine:
             user_text   = json.dumps({"event": payload, "features": feats}, ensure_ascii=False)
 
             contents = [
-                types.Content(role="user", parts=[types.Part.from_text(user_text)])
+                types.Content(role="user", parts=[types.Part(text=user_text)])
             ]
+
+
             cfg = types.GenerateContentConfig(
-                system_instruction=types.Part.from_text(system_text),
+                system_instruction=system_text,
                 temperature=0.1,
                 top_p=0.95,                     
                 seed=0,                          
