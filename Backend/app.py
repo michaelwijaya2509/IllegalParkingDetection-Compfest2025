@@ -7,12 +7,14 @@ import queue
 import json
 import time
 import datetime
+import subprocess
 import os
 import logging
 from collections import deque, Counter
 import yt_dlp
 import requests
 from slugify import slugify 
+import sys
 import pickle
 
 from urllib.parse import urlparse, urljoin
@@ -631,6 +633,7 @@ def decline_incident():
     
 
 # ================== START: New Analytics Endpoint ==================
+
 @app.get("/analytics/summary")
 def get_analytics_summary():
     try:
@@ -696,7 +699,6 @@ def get_analytics_summary():
         reason_counts = Counter(reasons)
         common_reasons = [{"reason": r, "count": count} for r, count in reason_counts.most_common(5)]
         
-        # Gabungan semua data
         summary = {
             "totalApprovedIncidents": total_approved_incidents,
             "todayApprovedIncidents": today_approved_incidents,
@@ -712,7 +714,66 @@ def get_analytics_summary():
     except Exception as e:
         log.exception("Error generating analytics summary: %s", e)
         return jsonify({"error": str(e)}), 500
-    
+
+# ========================= MCP : Finding Events API ========================
+@app.post("/events/refresh_cache")
+def refresh_upcoming_events_cache():
+
+    gemini_api_key = "AIzaSyDb8HvnyDX1orqYMGerKL7z7-OZNWidQqo"
+    if not gemini_api_key:
+        return jsonify({"error": "GEMINI_API_KEY variable not set."}), 500
+
+    try:
+        log.info("Starting expensive MCP event fetch to refresh cache...")
+        python_executable = sys.executable
+        client_script_path = resolve_path("mcp_events_client.py")
+
+        process = subprocess.run(
+            [python_executable, client_script_path, "--gemini-api-key", gemini_api_key],
+            capture_output=True, text=True, check=True, timeout=300
+        )
+
+        events_data = json.loads(process.stdout)
+        if "error" in events_data:
+             raise Exception(events_data["error"])
+
+        # Hapus cache lama dan simpan data baru ke Firebase
+        log.info("MCP fetch successful. Clearing old cache and saving new data to Firebase...")
+        fb_db_ref.child('UpcomingEvents').delete()
+        fb_db_ref.child('UpcomingEvents').set(events_data)
+        
+        # Simpan timestamp update
+        timestamp = datetime.now().isoformat()
+        fb_db_ref.child('UpcomingEvents_meta').child('last_updated').set(timestamp)
+        
+        log.info("Firebase cache updated successfully.")
+        return jsonify({"ok": True, "message": "Event cache refreshed successfully.", "updated_at": timestamp})
+
+    except Exception as e:
+        log.exception("Failed to refresh event cache: %s", e)
+        return jsonify({"error": "Failed to refresh event cache.", "details": str(e)}), 500
+
+@app.get("/events/upcoming")
+def get_upcoming_events_from_cache():
+  
+    try:
+        events_data = fb_db_ref.child('UpcomingEvents').get()
+        if not events_data:
+            return jsonify({"all_events": [], "jakarta_events": [], "error": "Cache is empty."})
+        return jsonify(events_data)
+    except Exception as e:
+        log.exception("Failed to get events from cache: %s", e)
+        return jsonify({"error": "Could not retrieve events from Firebase.", "details": str(e)}), 500
+
+@app.get("/events/cache_status")
+def get_events_cache_status():
+  
+    try:
+        timestamp = fb_db_ref.child('UpcomingEvents_meta').child('last_updated').get()
+        return jsonify({"last_updated": timestamp})
+    except Exception as e:
+        return jsonify({"error": "Could not retrieve cache status.", "details": str(e)}), 500
+
 # ------------------------ API: misc --------------------------
 @app.get("/snaps/<path:name>")
 def snaps(name):

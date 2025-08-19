@@ -14,9 +14,11 @@ import {
   FiAlertTriangle,
   FiLogOut,
   FiChevronDown,
+  FiClock,
 } from "react-icons/fi";
 import Image from "next/image";
 import Logo from "../../public/horus-ai.png";
+import { icon } from "leaflet";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -30,6 +32,7 @@ const Navigation = () => {
     { href: "/incidents", label: "Incidents", icon: FiAlertTriangle },
     { href: "/analytics", label: "Analytics", icon: FiBarChart2 },
     { href: "/newlocation", label: "Add New Location", icon: FiMapPin },
+    { href: "/events", label: "Upcoming Events", icon: FiClock },
   ];
 
   useEffect(() => {

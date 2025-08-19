@@ -75,7 +75,7 @@ export default function Incidents() {
     <div className="min-h-screen bg-primary">
       <Navigation />
 
-      <main className="pt-20 p-20 mt-10">
+      <main className="pt-20 p-12 mt-10">
         <div className="max-w-10xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div>
