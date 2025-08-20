@@ -6,7 +6,7 @@ import threading
 import queue
 import json
 import time
-import datetime
+import datetime as dt
 import subprocess
 import os
 import logging
@@ -18,9 +18,9 @@ import sys
 import pickle
 
 from urllib.parse import urlparse, urljoin
-from logics.cnn_macet import check_macet_cnn
-from logics.cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
-from logics.urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta, ScoredEvent
+from cnn_macet import check_macet_cnn
+from cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
+from urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta, ScoredEvent
 
 from datetime import datetime, timedelta
 from dataclasses import asdict
@@ -33,15 +33,50 @@ from deep_sort_realtime.deepsort_tracker import DeepSort
 
 import firebase_admin
 from firebase_admin import credentials, db
+from google.cloud import storage, secretmanager
 
-# ======================== Firebase Configurations ====================== #
-cred = credentials.Certificate("firebase-credentials.json") 
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://horus-ai-edcc1-default-rtdb.asia-southeast1.firebasedatabase.app/'
-})
+# ======================== Load Credentials from Secret Manager ================= #
+PROJECT_ID = "horus-ai-468916"
+SECRET_ID = "firebase-realtimedb-credentials"
 
-# bikin reference ke database
-fb_db_ref = db.reference()
+def access_secret_version(project_id, secret_id, version_id="latest"):
+    """
+    Mengakses payload dari secret yang ada di Secret Manager.
+    """
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
+    
+    # Akses secret version.
+    response = client.access_secret_version(request={"name": name})
+    
+    return response.payload.data.decode("UTF-8")
+
+
+try:
+    credentials_json_string = access_secret_version(PROJECT_ID, SECRET_ID)
+    
+    credentials_info = json.loads(credentials_json_string)
+
+    # ======================== Firebase Configurations ====================== #
+    cred = credentials.Certificate(credentials_info)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://horus-ai-468916-default-rtdb.asia-southeast1.firebasedatabase.app/'
+    })
+    fb_db_ref = db.reference()
+    logging.info("Successfully initialized Firebase from Secret Manager.")
+
+    # ======================== GCS Configurations ======================= #
+    GCS_BUCKET_NAME = 'horus-ai-storage'
+    storage_client = storage.Client.from_service_account_info(credentials_info)
+    gcs_bucket = storage_client.bucket(GCS_BUCKET_NAME)
+    logging.info(f"Successfully connected to GCS bucket from Secret Manager: {GCS_BUCKET_NAME}")
+
+except Exception as e:
+    logging.error(f"Failed to load credentials from Secret Manager: {e}")
+    fb_db_ref = None
+    gcs_bucket = None
+    storage_client = None
+
 
 # ======================== Path Helpers ========================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -327,14 +362,29 @@ class DetectorWorker(threading.Thread):
                     reason = "Supir Keluar" if st.get("driver_exited", False) else "Waktu Parkir > 5 Menit"
                     print(f"Terdeteksi ILLEGAL PARKING (Alasan: {reason})")
 
-                    snap_path = os.path.join(SNAP_DIR, f"{self.cam_id}_{tr.track_id}_{int(now_ts)}.jpg")
                     snap_url = None
                     try:
                         crop = frame[max(0, y1):max(0, y2), max(0, x1):max(0, x2)]
-                        if crop.size > 0:
-                            cv2.imwrite(snap_path, crop)
-                            snap_url = f"/snaps/{os.path.basename(snap_path)}"
+                        if crop.size > 0 and gcs_bucket:
+                            success, buffer = cv2.imencode('.jpg', crop)
+                            if success:
+                                # Define a unique name for the file in GCS
+                                blob_name = f"snapshots/{self.cam_id}_{tr.track_id}_{int(now_ts)}.jpg"
+                                blob = gcs_bucket.blob(blob_name)
+
+                                # Upload the image from the memory buffer
+                                blob.upload_from_string(
+                                    buffer.tobytes(),
+                                    content_type='image/jpeg'
+                                )
+
+                                # Get the public URL for the file
+                                snap_url = blob.public_url
+                                log.info(f"Snapshot uploaded to GCS: {snap_url}")
+                            else:
+                                log.error("Failed to encode snapshot to JPEG format.")
                     except Exception:
+                        log.exception(f"❌ Failed to upload snapshot to GCS: {e}")
                         pass
 
                     event_id = f"{self.cam_id}-{tr.track_id}-{int(now_ts)}"
@@ -342,7 +392,7 @@ class DetectorWorker(threading.Thread):
                         event_id=event_id,
                         cam_id=self.cam_id,
                         duration_s=int(st["stationary_s"]),
-                        started_at=datetime.datetime.fromtimestamp(now_ts - st["stationary_s"]).isoformat(),
+                        started_at=dt.datetime.fromtimestamp(now_ts - st["stationary_s"]).isoformat(),
                         driver_left_vehicle=st.get("driver_exited", False),
                         traffic_jam=is_traffic_jam, 
                         zone_name=st["zone_name"],
@@ -358,8 +408,8 @@ class DetectorWorker(threading.Thread):
                         try:
                             fb_db_ref.child('PendingIncidents').child(event_id).set(scored_dict)
                             log.info(f"Successfully pushed incident {event_id} to Firebase. ")
-                        except:
-                            log.error(f"Failed to push incident {event_id} to Firebase: {e}")
+                        except Exception as e:
+                            log.error(f"❌ Failed to push incident {event_id} to Firebase: {e}")
 
                         broadcast({"type": "violation_event", "data": scored_dict}, also_store=True)
 
