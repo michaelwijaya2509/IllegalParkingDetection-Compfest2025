@@ -6,6 +6,7 @@ import cv2
 from collections import defaultdict
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
+import torch
 
 def load_zones(zone, video_path):
     cap = cv2.VideoCapture(video_path)
@@ -33,18 +34,32 @@ def load_zones(zone, video_path):
 def point_in_polygon(x, y, polygon):
     return cv2.pointPolygonTest(np.array(polygon, np.int32), (int(x), int(y)), False) >= 0
 
-def crop_with_margin(frame, box, margin_ratio=0.3):
-    h_img, w_img = frame.shape[:2]
+def crop_with_margin(frame, box, margin_ratio=0.3, out_size=(224, 224)):
+    H, W = frame.shape[:2]
     x1, y1, x2, y2 = map(int, box)
-    box_w = x2 - x1
-    box_h = y2 - y1
-    mx = int(box_w * margin_ratio)
-    my = int(box_h * margin_ratio)
-    x1_crop = max(0, x1 - mx)
-    y1_crop = max(0, y1 - my)
-    x2_crop = min(w_img, x2 + mx)
-    y2_crop = min(h_img, y2 + my)
-    return cv2.resize(frame[y1_crop:y2_crop, x1_crop:x2_crop], (224, 224))
+
+    # pastikan bbox valid dulu
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    bw, bh = x2 - x1, y2 - y1
+    mx = int(bw * margin_ratio)
+    my = int(bh * margin_ratio)
+
+    x1c = max(0, x1 - mx)
+    y1c = max(0, y1 - my)
+    x2c = min(W, x2 + mx)
+    y2c = min(H, y2 + my)
+
+    # validasi lagi setelah clamp
+    if x2c <= x1c or y2c <= y1c:
+        return None
+
+    crop = frame[y1c:y2c, x1c:x2c]
+    if crop.size == 0 or crop.shape[0] < 2 or crop.shape[1] < 2:
+        return None
+
+    return cv2.resize(crop, out_size)
 
 
 
@@ -153,32 +168,29 @@ def preprocess_frames_for_inference(frames):
 
 
 def check_driver_exit(vehicle_frames, model_inference):
-
-    if not vehicle_frames or model_inference is None:
-        return False
-    
     try:
         processed_data = preprocess_frames_for_inference(vehicle_frames)
         
         if processed_data is None:
             return False
+        input_tensor = torch.from_numpy(processed_data).float()
         
-        if hasattr(model_inference, 'predict'):
-            prediction = model_inference.predict(processed_data)
-        elif hasattr(model_inference, 'predict_proba'):
-            prediction = model_inference.predict_proba(processed_data)
-        elif callable(model_inference):
-            prediction = model_inference(processed_data)
+
+        num_frames = input_tensor.shape[1] 
+        lengths_tensor = torch.tensor([num_frames]) 
+        
+        if callable(model_inference):
+            with torch.no_grad(): 
+                logits = model_inference(input_tensor, lengths_tensor)
+                probabilities = torch.softmax(logits, dim=1)
+                prediction = probabilities[0, 1].item() #
         else:
             print("Model doesn't have any inference method")
             return False
         
-        if isinstance(prediction, np.ndarray):
-            driver_exit = prediction[0] > 0.5
-        else:
-            driver_exit = bool(prediction)
+        driver_exit = prediction > 0.4
         
-        print(f"Driver exit prediction: {driver_exit}")
+        print(f"Driver exit prediction probability: {prediction:.4f} -> {driver_exit}")
         return driver_exit
         
     except Exception as e:
