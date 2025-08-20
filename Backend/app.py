@@ -18,9 +18,9 @@ import sys
 import pickle
 
 from urllib.parse import urlparse, urljoin
-from cnn_macet import check_macet_cnn
-from cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
-from urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta, ScoredEvent
+from logics.cnn_macet import check_macet_cnn
+from logics.cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
+from logics.urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta, ScoredEvent
 
 from datetime import datetime, timedelta
 from dataclasses import asdict
