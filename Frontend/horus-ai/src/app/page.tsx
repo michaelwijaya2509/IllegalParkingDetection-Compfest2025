@@ -318,9 +318,11 @@ const IncidentList = ({
 
 const CctvPreview = ({
   cctv,
+  incident,
   onBackClick,
 }: {
   cctv: any;
+  incident?: any;
   onBackClick: () => void;
 }) => {
   const [trackingData, setTrackingData] = useState<TrackingData | null>(null);
@@ -438,14 +440,20 @@ const CctvPreview = ({
         </div>
       </div>
       <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-black border border-gray-700">
-        {cctv?.is_running && cctv?.stream_endpoint ? (
+        {incident?.event?.snapshot_url ? (
+          <img
+            src={incident.event.snapshot_url}
+            alt="Incident snapshot"
+            className="absolute top-0 left-0 w-full h-full object-contain"
+          />
+        ) : cctv?.is_running && cctv?.stream_endpoint ? (
           <>
             {streamUrl && (
               <>
                 <img
                   ref={videoRef}
                   src={streamUrl}
-                  alt="Live video feed of incident"
+                  alt="Live video feed"
                   className="absolute top-0 left-0 w-full h-full object-contain"
                 />
                 <canvas
@@ -459,7 +467,7 @@ const CctvPreview = ({
           <div className="w-full h-full flex items-center justify-center text-gray-500">
             <div className="text-center">
               <FiWifiOff className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>Live feed not available for this camera.</p>
+              <p>Live feed or snapshot not available.</p>
               <p className="text-xs mt-1">Camera: {cctv.cam_id}</p>
             </div>
           </div>
@@ -477,6 +485,7 @@ export default function Home() {
   >(null);
   const [selectedCCTV, setSelectedCCTV] = useState<any | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState<any | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -645,6 +654,8 @@ export default function Home() {
     const incident = incidents[index];
     if (!incident) return;
 
+    setSelectedIncident(incident);
+
     const matchingCCTV = cctvLocations.find(
       (cctv) => cctv.cam_id === incident.cam_id
     );
@@ -662,6 +673,7 @@ export default function Home() {
 
   const handleBackToList = () => {
     setSelectedCCTV(null);
+    setSelectedIncident(null);
     setPreviewCoordinates(null);
   };
 
@@ -712,7 +724,11 @@ export default function Home() {
       <main className="flex flex-col lg:flex-row w-full min-h-screen pt-24 mt-4 px-4 sm:px-6 lg:px-8 gap-6">
         <div className="w-full lg:w-2/5 xl:w-1/3 flex-shrink-0 transition-all duration-300">
           {selectedCCTV ? (
-            <CctvPreview cctv={selectedCCTV} onBackClick={handleBackToList} />
+            <CctvPreview
+              cctv={selectedCCTV}
+              incident={selectedIncident}
+              onBackClick={handleBackToList}
+            />
           ) : (
             <IncidentList
               incidents={incidents}
