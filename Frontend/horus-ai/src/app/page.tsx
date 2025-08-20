@@ -270,7 +270,7 @@ const IncidentList = ({
                 {eventDetails.snapshot_url && (
                   <div className="pt-2">
                     <img
-                      src={`${BACKEND_URL}${eventDetails.snapshot_url}`}
+                      src={eventDetails.snapshot_url}
                       alt={`Snapshot for ${eventDetails.event_id}`}
                       className="w-full rounded-md border border-gray-600 bg-gray-800"
                       onError={(e) => {
