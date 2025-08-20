@@ -1,4 +1,5 @@
 video/
+videos/
 event_dataset/
 dataset/
 event_dataset_enhanced/
@@ -27,5 +28,8 @@ results/
 # Datasets and generated folders
 event/
 illegal/
+runs/
 
 *.pkl
+*.pth
+*.pt
