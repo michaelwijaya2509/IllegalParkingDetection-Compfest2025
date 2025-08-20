@@ -10,9 +10,12 @@ import datetime as dt
 import subprocess
 import os
 import logging
+import torch
+import torch.nn as nn
 from collections import deque, Counter
 import yt_dlp
 import requests
+import math
 from slugify import slugify 
 import sys
 import pickle
@@ -27,6 +30,8 @@ from dataclasses import asdict
 import cv2
 import numpy as np
 from math import sqrt
+import torch.nn.functional as F
+
 
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
@@ -34,6 +39,268 @@ from deep_sort_realtime.deepsort_tracker import DeepSort
 import firebase_admin
 from firebase_admin import credentials, db
 from google.cloud import storage, secretmanager
+from torchvision.models import efficientnet_b3, EfficientNet_B3_Weights 
+
+
+class MultiHeadAttention(nn.Module):
+
+    """ Multi-Head Attention buat temporal modeling """
+    
+    def __init__(self, d_model, num_heads, dropout=0.1):
+        super().__init__()
+        assert d_model % num_heads == 0
+        
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_k = d_model // num_heads
+        
+        self.w_q = nn.Linear(d_model, d_model)
+        self.w_k = nn.Linear(d_model, d_model)
+        self.w_v = nn.Linear(d_model, d_model)
+        self.w_o = nn.Linear(d_model, d_model)
+        
+        self.dropout = nn.Dropout(dropout)
+        self.layer_norm = nn.LayerNorm(d_model)
+        
+    def forward(self, x, mask=None):
+        # x: (B, T, d_model)
+        batch_size, seq_len = x.size(0), x.size(1)
+        residual = x
+        
+        # Linear transformations
+        Q = self.w_q(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        K = self.w_k(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        V = self.w_v(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        
+        # Attention
+        attention_output = self.scaled_dot_product_attention(Q, K, V, mask)
+        attention_output = attention_output.transpose(1, 2).contiguous().view(
+            batch_size, seq_len, self.d_model
+        )
+        
+        # Outputnya projection dan residual
+        output = self.w_o(attention_output)
+        output = self.dropout(output)
+        return self.layer_norm(output + residual)
+    
+    def scaled_dot_product_attention(self, Q, K, V, mask=None):
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
+        
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, -1e9)
+            
+        attention_weights = F.softmax(scores, dim=-1)
+        attention_weights = self.dropout(attention_weights)
+        
+        return torch.matmul(attention_weights, V)
+
+class FeatureAdapter(nn.Module):
+
+    """ Adapter layer buat mapping CNN features ke sequence modeling """
+
+    def __init__(self, input_dim, output_dim, dropout=0.1):
+        super().__init__()
+        self.adapter = nn.Sequential(
+            nn.Linear(input_dim, output_dim * 2),
+            nn.LayerNorm(output_dim * 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(output_dim * 2, output_dim),
+            nn.LayerNorm(output_dim),
+            nn.GELU(),
+            nn.Dropout(dropout)
+        )
+        self.residual = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
+        
+    def forward(self, x):
+        # x: (B, T, input_dim) atau (B*T, input_dim)
+        original_shape = x.shape
+        if len(original_shape) == 3:
+            B, T, D = original_shape
+            x = x.view(B*T, D)
+            adapted = self.adapter(x) + self.residual(x)
+            return adapted.view(B, T, -1)
+        else:
+            return self.adapter(x) + self.residual(x)
+        
+class SequenceHeadLSTM(nn.Module):
+
+    """
+    Enhanced Head temporal LSTM dengan Multi-Head Attention, Bidirectional LSTM, dan Residual connections.
+    Input :
+      feats   : (B, T, D)  -> fitur dari CNN per frame
+      lengths : (B,)       -> panjang asli tiap sequence (<= T)
+    Output:
+      logits  : (B, num_classes)
+    """
+
+    def __init__(self, feat_dim: int = 1536, adapter_dim: int = 512, hidden: int = 512, 
+                 layers: int = 1, num_classes: int = 2, bidirectional: bool = True, 
+                 dropout: float = 0.3, num_attention_heads: int = 8, use_residual: bool = True):
+        super().__init__()
+        
+        # Feature adapter
+        self.feature_adapter = FeatureAdapter(feat_dim, adapter_dim, dropout)
+        
+        # Multi-head attention
+        self.attention = MultiHeadAttention(
+            d_model=adapter_dim, 
+            num_heads=num_attention_heads, 
+            dropout=dropout
+        )
+        
+        # Bidirectional LSTM
+        self.lstm = nn.LSTM(
+            input_size=adapter_dim,
+            hidden_size=hidden,
+            num_layers=layers,
+            batch_first=True,
+            bidirectional=bidirectional,
+            dropout=(dropout if layers > 1 else 0.0),
+        )
+        
+        # Residual connection params
+        self.use_residual = use_residual
+        if use_residual:
+            lstm_out_dim = hidden * (2 if bidirectional else 1)
+            self.residual_proj = nn.Linear(adapter_dim, lstm_out_dim)
+        
+        out_dim = hidden * (2 if bidirectional else 1)
+        
+        # Enhanced classifier dengan lebih banyak layer
+        self.classifier = nn.Sequential(
+            nn.Linear(out_dim, 128),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(128, num_classes),
+        )
+
+        self._init_classifier()
+
+    def _init_classifier(self):
+        for m in self.classifier.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def create_attention_mask(self, lengths, max_len):
+
+        """ attention mask untuk variable length sequences """
+
+        batch_size = len(lengths)
+        mask = torch.zeros(batch_size, max_len, dtype=torch.bool, device=lengths.device)
+        for i, length in enumerate(lengths):
+            mask[i, :length] = True
+        return mask.unsqueeze(1).unsqueeze(1)  # (B, 1, 1, T) untuk broadcasting
+
+    def forward(self, feats: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        # feats: (B, T, D), lengths harus di CPU untuk pack
+        B, T, D = feats.shape
+        
+        # Feature adaptation
+        adapted_feats = self.feature_adapter(feats)  # (B, T, adapter_dim)
+        
+        # Multi-head attention dengan mask
+        attention_mask = self.create_attention_mask(lengths, T)
+        attended_feats = self.attention(adapted_feats, mask=attention_mask)  # (B, T, adapter_dim)
+        
+        # LSTM processing
+        packed = nn.utils.rnn.pack_padded_sequence(
+            attended_feats, lengths.cpu(), batch_first=True, enforce_sorted=False
+        )
+        lstm_out, (h_n, _) = self.lstm(packed)  # h_n: (num_layers * num_dirs, B, H)
+        
+        # Unpack untuk residual connection
+        if self.use_residual:
+            unpacked_out, _ = nn.utils.rnn.pad_packed_sequence(lstm_out, batch_first=True)
+            seq_mask = torch.arange(T, device=feats.device).unsqueeze(0) < lengths.unsqueeze(1)
+            seq_mask = seq_mask.unsqueeze(-1).float()  # (B, T, 1)
+            
+            pooled_attended = (attended_feats * seq_mask).sum(dim=1) / lengths.unsqueeze(1).float()
+            pooled_attended = self.residual_proj(pooled_attended)  # (B, lstm_out_dim)
+
+        # final hidden state
+        if self.lstm.bidirectional:
+            h_last = torch.cat([h_n[-2], h_n[-1]], dim=1)  # (B, 2H)
+        else:
+            h_last = h_n[-1]                               # (B, H)
+
+        # Add residual connection
+        if self.use_residual:
+            h_last = h_last + pooled_attended
+
+        logits = self.classifier(h_last)                   # (B, num_classes)
+        return logits
+    
+
+class CNNFeatureExtractor(nn.Module):
+
+    """
+    Ekstraktor fitur frame berbasis EfficientNet-B7 (tanpa classifier).
+    - Jika input (B, C, H, W) -> output (B, D)
+    - Jika input (B, T, C, H, W) -> output (B, T, D)
+    D = cnn_feature_size (Eff-B7 = 2560).
+    """
+    
+    def __init__(self, freeze_backbone: bool = True):
+        super().__init__()
+        self.backbone = efficientnet_b3(weights=EfficientNet_B3_Weights.IMAGENET1K_V1)
+        self.backbone.classifier = nn.Identity()  # keluarkan vektor fitur akhir (B, 1536)
+
+        if freeze_backbone:
+            for p in self.backbone.parameters():
+                p.requires_grad = False
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.dim() == 4:  # (B, C, H, W)
+            return self.backbone(x)  # (B, D)
+
+        elif x.dim() == 5:  # (B, T, C, H, W)
+            B, T, C, H, W = x.shape
+            x_flat = x.view(B * T, C, H, W)
+            feats = self.backbone(x_flat)         # (B*T, D)
+            D = feats.shape[1]
+            return feats.view(B, T, D)            # (B, T, D)
+
+        else:
+            raise ValueError(f"Unexpected input shape: {x.shape}")
+        
+class CNNLSTMModel(nn.Module):
+
+    """
+    Enhanced CNN+LSTM model dengan Multi-Head Attention dan Feature Adapter.
+    Input : x (B,T,C,H,W), lengths (B,)
+    Output: logits (B,num_classes)
+    """
+
+    def __init__(self, num_classes=2, cnn_feature_size=1536, adapter_dim=512,
+                 lstm_hidden=512, lstm_layers=1, bidirectional=True, dropout=0.3,
+                 num_attention_heads=8, use_residual=True, freeze_backbone=True):
+        super().__init__()
+        self.extractor = CNNFeatureExtractor(freeze_backbone=freeze_backbone)
+        self.head = SequenceHeadLSTM(
+            feat_dim=cnn_feature_size,
+            adapter_dim=adapter_dim,
+            hidden=lstm_hidden,
+            layers=lstm_layers,
+            num_classes=num_classes,
+            bidirectional=bidirectional,
+            dropout=dropout,
+            num_attention_heads=num_attention_heads,
+            use_residual=use_residual
+        )
+
+    def forward(self, x_btchw: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        feats = self.extractor(x_btchw)            # (B, T, D)
+        logits = self.head(feats, lengths)         # (B, num_classes)
+        return logits
+    
+
+
 
 # ======================== Load Credentials from Secret Manager ================= #
 PROJECT_ID = "horus-ai-468916"
@@ -93,20 +360,38 @@ def resolve_path(p):
     return p if os.path.isabs(p) else os.path.normpath(os.path.join(BASE_DIR, p))
 
 # ------------------------ Flask & CORS ------------------------
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})  # Izinkan semua origin untuk semua route
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("horusai.app")
 
-MODEL_EVENT_PATH = resolve_path("car_open_detection.pkl")
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})  # Izinkan semua origin untuk semua route
+
+MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1.pkl")
 MODEL_EVENT_INFERENCE = None
 
 try:
-    with open(MODEL_EVENT_PATH, "rb") as f:
-        MODEL_EVENT_INFERENCE = pickle.load(f)
-        log.info("Model loaded successfully from %s", MODEL_EVENT_PATH)
-except:
-    log.error("Failed to load model from %s", MODEL_EVENT_PATH)
+    log.info("==============================================")
+    log.info(">>> ATTEMPTING TO LOAD DRIVER EXIT MODEL... <<<")
+    
+     # Gunakan torch.load dan map_location
+    MODEL_EVENT_INFERENCE = torch.load(
+    MODEL_EVENT_PATH, 
+    map_location=torch.device('cpu'), 
+    weights_only=False  # <-- TAMBAHKAN ARGUMEN INI
+)
+    
+    # Best practice: setel model ke mode evaluasi setelah dimuat
+    MODEL_EVENT_INFERENCE.eval()
+    
+    log.info(">>> MODEL LOADED SUCCESSFULLY! Object type: %s", type(MODEL_EVENT_INFERENCE))
+    log.info("==============================================")
+
+except Exception as e:
+    log.error("==============================================")
+    log.error(">>> FAILED TO LOAD DRIVER EXIT MODEL <<<")
+    log.error("Path: %s", MODEL_EVENT_PATH)
+    log.error("Error Details: %s", e, exc_info=True) # exc_info=True akan memberikan traceback lengkap
+    log.error("==============================================")
 
 
 # ------------------------ SSE infra (Tidak diubah) --------------------------
@@ -154,7 +439,7 @@ workers: dict[str, "DetectorWorker"] = {}
 SNAP_DIR = resolve_path(os.environ.get("SNAP_DIR", "snaps"))
 os.makedirs(SNAP_DIR, exist_ok=True)
 MOVE_PX_THRESH = int(os.environ.get("MOVE_PX_THRESH", "30"))
-MIN_STOP_S = float(os.environ.get("MIN_STOP_S", "10"))
+MIN_STOP_S = float(os.environ.get("MIN_STOP_S", "10000"))
 TARGET_CLASSES = set(os.environ.get("TARGET_CLASSES", "car,truck,bus").split(','))
 
 def point_in_polygon(x: int, y: int, polygon: list[list[int]]):
@@ -250,7 +535,6 @@ class DetectorWorker(threading.Thread):
                 self.current_frame = frame.copy()
 
             results = self.model(frame, verbose=False)[0]
-            #list of tupples ini
             detections = []
             for box in results.boxes:
                 cls_id = int(box.cls[0])
@@ -277,7 +561,6 @@ class DetectorWorker(threading.Thread):
                 cls_id = tr.det_class
                 cls_name = self.label_map.get(cls_id, "unknown")
 
-                # kalo vehicle yg kedetect bukan target class, gausah di track
                 if cls_name not in TARGET_CLASSES:
                     if tr.track_id in self.track_state:
                         self.track_state.pop(tr.track_id, None)
@@ -288,7 +571,7 @@ class DetectorWorker(threading.Thread):
                     if point_in_polygon(cx, cy, z["polygon"]):
                         zone_name_hit = z["name"]
                         break
-                # kalo ga ada bagian dari zona yg kena, maka vehicle itu gausah di track
+                
                 if zone_name_hit is None:
                     if tr.track_id in self.track_state:
                         self.track_state.pop(tr.track_id, None)
@@ -296,61 +579,66 @@ class DetectorWorker(threading.Thread):
 
                 st = self.track_state.get(tr.track_id)
                 if st is None:
+                    TARGET_FRAMES_FOR_EVENT = 16
                     st = {
                         "last_pos": (cx, cy),
                         "stationary_s": 0.0,
                         "last_ts": now_ts,
                         "zone_name": zone_name_hit,
-                        "exclude_from_detection": False,
-                        "frame_sequence": [],
+                        "frame_sequence": deque(maxlen=TARGET_FRAMES_FOR_EVENT),
                         "event_check_running": False,
                         "driver_exited": False,
-                        "violation_reported": False
+                        "violation_reported": False,
+                        "last_check_ts": 0
                     }
                     self.track_state[tr.track_id] = st
-
-                TARGET_FRAMES_FOR_EVENT = 16
-                if len(st["frame_sequence"]) < TARGET_FRAMES_FOR_EVENT:
-                    cropped_frame = crop_with_margin(frame, tr.to_ltrb())
-                    st["frame_sequence"].append(cropped_frame)
                 
-                is_traffic_jam = False
-                if len(detections) >= 8:
-                    isMacet = check_macet_cnn(frame)
-                    if isMacet:
-                        is_traffic_jam = True
-                        # kalo supir belum keluar, jeda timer dengan skip ke iterasi berikutnya
-                        if not st.get("driver_exited", False):
-                            print(f"Macet terdeteksi, timer untuk track ID {tr.track_id} dijeda.")
-                            st["last_ts"] = now_ts 
-                            continue 
-
                 dx, dy = cx - st["last_pos"][0], cy - st["last_pos"][1]
                 dist = sqrt(dx * dx + dy * dy)
                 dt_s = now_ts - st["last_ts"]
 
                 if dist < MOVE_PX_THRESH:
-                    st["stationary_s"] += dt_s 
-                
+                    st["stationary_s"] += dt_s
+                    cropped_frame = crop_with_margin(frame, tr.to_ltrb())
+                    if cropped_frame is not None:
+                        st["frame_sequence"].append(cropped_frame)
                 else:
                     st["stationary_s"], st["last_pos"] = 0.0, (cx, cy)
                     st["frame_sequence"].clear()
                     st["driver_exited"] = False
                     st["event_check_running"] = False
                     st["violation_reported"] = False
+                    st["last_check_ts"] = 0
+                
                 st["last_ts"] = now_ts
                 st["zone_name"] = zone_name_hit
-
-                # Thread cek supir keluar
-                if (len(st["frame_sequence"]) >= TARGET_FRAMES_FOR_EVENT and 
-                    not st["event_check_running"] and 
-                    not st["driver_exited"] and 
+                
+                is_traffic_jam = False
+                if len(detections) >= 8: 
+                    isMacet = check_macet_cnn(frame)
+                    if isMacet:
+                        is_traffic_jam = True
+                        if not st.get("driver_exited", False):
+                            print(f"Macet terdeteksi, timer untuk track ID {tr.track_id} dijeda.")
+                            st["last_ts"] = now_ts 
+                            continue 
+                
+                CHECK_INTERVAL_S = 2.0
+                
+                if (len(st["frame_sequence"]) == st["frame_sequence"].maxlen and
+                    not st["event_check_running"] and
+                    not st["driver_exited"] and
+                    (now_ts - st["last_check_ts"] > CHECK_INTERVAL_S) and
                     MODEL_EVENT_INFERENCE):
+                    
                     st["event_check_running"] = True
+                    st["last_check_ts"] = now_ts
+                    
                     log.info(f"Mulai pengecekan supir keluar untuk track id: {tr.track_id}")
+                    frames_to_check = list(st["frame_sequence"]) 
                     checker_thread = threading.Thread(
                         target=run_driver_exit_check,
-                        args=(self.cam_id, tr.track_id, list(st["frame_sequence"]), MODEL_EVENT_INFERENCE, st)
+                        args=(self.cam_id, tr.track_id, frames_to_check, MODEL_EVENT_INFERENCE, st)
                     )
                     checker_thread.start()
 
@@ -368,22 +656,17 @@ class DetectorWorker(threading.Thread):
                         if crop.size > 0 and gcs_bucket:
                             success, buffer = cv2.imencode('.jpg', crop)
                             if success:
-                                # Define a unique name for the file in GCS
                                 blob_name = f"snapshots/{self.cam_id}_{tr.track_id}_{int(now_ts)}.jpg"
                                 blob = gcs_bucket.blob(blob_name)
-
-                                # Upload the image from the memory buffer
                                 blob.upload_from_string(
                                     buffer.tobytes(),
                                     content_type='image/jpeg'
                                 )
-
-                                # Get the public URL for the file
                                 snap_url = blob.public_url
                                 log.info(f"Snapshot uploaded to GCS: {snap_url}")
                             else:
                                 log.error("Failed to encode snapshot to JPEG format.")
-                    except Exception:
+                    except Exception as e:
                         log.exception(f"❌ Failed to upload snapshot to GCS: {e}")
                         pass
 
@@ -414,9 +697,7 @@ class DetectorWorker(threading.Thread):
                         broadcast({"type": "violation_event", "data": scored_dict}, also_store=True)
 
                         print("LLM Output: ", scored)
-                    
                 
-                          
                 is_driver_locked = st.get("driver_exited", False)
                 current_tracks_for_frontend.append({
                     "track_id": tr.track_id, 
