@@ -21,9 +21,9 @@ import sys
 import pickle
 
 from urllib.parse import urlparse, urljoin
-from cnn_macet import check_macet_cnn
-from cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
-from urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta, ScoredEvent
+from logics.cnn_macet import check_macet_cnn
+from logics.cek_supir_keluar import check_driver_exit, crop_with_margin, preprocess_frames_for_inference
+from logics.urgency_engine import UrgencyEngine, ViolationEvent, CameraMeta, ScoredEvent
 
 from datetime import datetime, timedelta
 from dataclasses import asdict
@@ -376,9 +376,9 @@ try:
      # Gunakan torch.load dan map_location
     MODEL_EVENT_INFERENCE = torch.load(
     MODEL_EVENT_PATH, 
-    map_location=torch.device('cpu'), 
-    weights_only=False  # <-- TAMBAHKAN ARGUMEN INI
-)
+        map_location=torch.device('cpu'), 
+        weights_only=False  # <-- TAMBAHKAN ARGUMEN INI
+    )
     
     # Best practice: setel model ke mode evaluasi setelah dimuat
     MODEL_EVENT_INFERENCE.eval()
@@ -459,15 +459,16 @@ def load_zones(paths: list[str]):
             raise ValueError(f"Zona format tidak dikenal: {p}")
     return polys
 
-def run_driver_exit_check(cam_id, track_id, frames, model, track_state_obj):
-
-    log.info(f"[THREAD] Memproses {len(frames)} frames untuk track ID {track_id}...")
+def run_driver_exit_check(cam_id, track_id, cropped_frames, full_frames, model, track_state_obj):
+    log.info(f"[THREAD] Memproses {len(cropped_frames)} frames untuk track ID {track_id}...")
     
-    is_driver_exit = check_driver_exit(frames, model)
+    is_driver_exit = check_driver_exit(cropped_frames, model)
     
     if is_driver_exit:
         log.info(f"[THREAD] Terdeteksi supir keluar untuk track ID: {track_id}")
         track_state_obj["driver_exited"] = True
+        if full_frames:
+            track_state_obj["evidence_frame"] = full_frames[len(full_frames) // 2]
     else:
         log.info(f"[THREAD] Tidak terdeteksi supir keluar untuk track ID: {track_id}")
 
@@ -521,6 +522,10 @@ class DetectorWorker(threading.Thread):
     
         self.frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        COOLDOWN_TIME = 1800 # 1800 frames, 60 seconds
+        cooldown_frame_count = 0
+        isMacet = False
 
         while not self.stop_flag.is_set():
             ok, frame = cap.read()
@@ -589,7 +594,8 @@ class DetectorWorker(threading.Thread):
                         "event_check_running": False,
                         "driver_exited": False,
                         "violation_reported": False,
-                        "last_check_ts": 0
+                        "last_check_ts": 0,
+                        "evidence_frame": None 
                     }
                     self.track_state[tr.track_id] = st
                 
@@ -601,20 +607,30 @@ class DetectorWorker(threading.Thread):
                     st["stationary_s"] += dt_s
                     cropped_frame = crop_with_margin(frame, tr.to_ltrb())
                     if cropped_frame is not None:
-                        st["frame_sequence"].append(cropped_frame)
+                        st["frame_sequence"].append((cropped_frame, frame.copy()))
                 else:
                     st["stationary_s"], st["last_pos"] = 0.0, (cx, cy)
                     st["frame_sequence"].clear()
                     st["driver_exited"] = False
                     st["event_check_running"] = False
                     st["violation_reported"] = False
+                    st["evience_frame"] = None
                     st["last_check_ts"] = 0
                 
                 st["last_ts"] = now_ts
                 st["zone_name"] = zone_name_hit
                 
-                is_traffic_jam = False
-                if len(detections) >= 8: 
+                is_traffic_jam = isMacet
+
+                if isMacet:
+                    cooldown_frame_count += 1
+                    if cooldown_frame_count >= COOLDOWN_TIME:
+                        isMacet = False
+                        cooldown_frame_count = 0
+                    else:
+                        continue
+
+                if len(detections) >= 8 and not isMacet: 
                     isMacet = check_macet_cnn(frame)
                     if isMacet:
                         is_traffic_jam = True
@@ -622,6 +638,7 @@ class DetectorWorker(threading.Thread):
                             print(f"Macet terdeteksi, timer untuk track ID {tr.track_id} dijeda.")
                             st["last_ts"] = now_ts 
                             continue 
+
                 
                 CHECK_INTERVAL_S = 2.0
                 
@@ -635,10 +652,12 @@ class DetectorWorker(threading.Thread):
                     st["last_check_ts"] = now_ts
                     
                     log.info(f"Mulai pengecekan supir keluar untuk track id: {tr.track_id}")
-                    frames_to_check = list(st["frame_sequence"]) 
+                    sequence_copy = list(st["frame_sequence"])
+                    crops_for_model = [item[0] for item in sequence_copy]
+                    full_frames_for_evidence = [item[1] for item in sequence_copy]
                     checker_thread = threading.Thread(
                         target=run_driver_exit_check,
-                        args=(self.cam_id, tr.track_id, frames_to_check, MODEL_EVENT_INFERENCE, st)
+                        args=(self.cam_id, tr.track_id, crops_for_model, full_frames_for_evidence,  MODEL_EVENT_INFERENCE, st)
                     )
                     checker_thread.start()
 
@@ -652,11 +671,16 @@ class DetectorWorker(threading.Thread):
 
                     snap_url = None
                     try:
-                        crop = frame[max(0, y1):max(0, y2), max(0, x1):max(0, x2)]
+
+                        snapshot_frame = st.get("evidence_frame") if st.get("driver_exited") else frame
+
+                        snap_x1, snap_y1, snap_x2, snap_y2 = map(int, tr.to_ltrb())
+
+                        crop = snapshot_frame[max(0, snap_y1):max(0, snap_y2), max(0, snap_x1):max(0, snap_x2)]
                         if crop.size > 0 and gcs_bucket:
                             success, buffer = cv2.imencode('.jpg', crop)
                             if success:
-                                blob_name = f"snapshots/{self.cam_id}_{tr.track_id}_{int(now_ts)}.jpg"
+                                blob_name = f"snapshots/{self.cam_id}{tr.track_id}{int(now_ts)}.jpg"
                                 blob = gcs_bucket.blob(blob_name)
                                 blob.upload_from_string(
                                     buffer.tobytes(),
