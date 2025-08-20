@@ -202,7 +202,7 @@ export default function Incidents() {
                       <label className="text-gray-400 text-sm">Evidence</label>
                       <div className="mt-2 aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
                         <img
-                          src={`${BACKEND_URL}${selectedIncident.event.snapshot_url}`}
+                          src={selectedIncident.event.snapshot_url}
                           className="w-full h-full object-contain"
                           alt="Incident Snapshot"
                         />
