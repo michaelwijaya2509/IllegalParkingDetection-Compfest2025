@@ -303,8 +303,8 @@ class CNNLSTMModel(nn.Module):
 
 
 # ======================== Load Credentials from Secret Manager ================= #
-PROJECT_ID = "horus-ai-468916"
-SECRET_ID = "firebase-realtimedb-credentials"
+PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID", "horus-ai-468916")
+SECRET_ID = os.environ.get("FIREBASE_SECRET_ID", "firebase-realtimedb-credentials")
 
 def access_secret_version(project_id, secret_id, version_id="latest"):
     """
@@ -333,7 +333,7 @@ try:
     logging.info("Successfully initialized Firebase from Secret Manager.")
 
     # ======================== GCS Configurations ======================= #
-    GCS_BUCKET_NAME = 'horus-ai-storage'
+    GCS_BUCKET_NAME =  os.environ.get("GCS_BUCKET_NAME")
     storage_client = storage.Client.from_service_account_info(credentials_info)
     gcs_bucket = storage_client.bucket(GCS_BUCKET_NAME)
     logging.info(f"Successfully connected to GCS bucket from Secret Manager: {GCS_BUCKET_NAME}")
@@ -794,18 +794,18 @@ camera_metas = {
 
 urgency_engine = UrgencyEngine(cameras=camera_metas)
 
-@app.get("/detector/tracking_data/<cam_id>")
-def get_tracking_data(cam_id):
-    """Get current tracking data for frontend display"""
-    worker = workers.get(cam_id)
-    if not worker:
-        return jsonify({"error": "Camera not running"}), 404
+# @app.get("/detector/tracking_data/<cam_id>")
+# def get_tracking_data(cam_id):
+#     """Get current tracking data for frontend display"""
+#     worker = workers.get(cam_id)
+#     if not worker:
+#         return jsonify({"error": "Camera not running"}), 404
 
-    data = worker.get_tracking_data()
-    data["timestamp"] = time.time()
-    data["video_width"] = worker.frame_width
-    data["video_height"] = worker.frame_height
-    return jsonify(data)
+#     data = worker.get_tracking_data()
+#     data["timestamp"] = time.time()
+#     data["video_width"] = worker.frame_width
+#     data["video_height"] = worker.frame_height
+#     return jsonify(data)
 
 # ------------------------ API: detectors ---------------------
 @app.post("/detector/start_by_id")
@@ -1074,7 +1074,7 @@ def get_analytics_summary():
 @app.post("/events/refresh_cache")
 def refresh_upcoming_events_cache():
 
-    gemini_api_key = "AIzaSyDb8HvnyDX1orqYMGerKL7z7-OZNWidQqo"
+    gemini_api_key = os.environ.get("GEMIINI_API_KEY")
     if not gemini_api_key:
         return jsonify({"error": "GEMINI_API_KEY variable not set."}), 500
 

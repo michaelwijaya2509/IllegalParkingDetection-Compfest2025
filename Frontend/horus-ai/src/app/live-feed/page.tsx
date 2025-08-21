@@ -31,26 +31,12 @@ interface Track {
   is_violation: boolean;
 }
 
-interface Zone {
-  name: string;
-  polygon: [number, number][];
-}
-
-interface TrackingData {
-  tracks: Track[];
-  zones: Zone[];
-  timestamp: number;
-  video_width: number;
-  video_height: number;
-}
-
 const API_BASE_URL = "http://localhost:5001";
 
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [trackingData, setTrackingData] = useState<TrackingData | null>(null);
 
   const [resolvedHlsUrl, setResolvedHlsUrl] = useState<string | null>(null);
   const [isHlsLoading, setIsHlsLoading] = useState(false);
@@ -110,95 +96,6 @@ export default function LiveFeed() {
       resolveUrlForPlayer();
     }
   }, [selectedCamera?.cam_id, selectedCamera?.is_running]);
-
-  const drawOverlays = (data: TrackingData) => {
-    const canvas = canvasRef.current;
-    const videoElement = videoRef.current;
-    if (!canvas || (!videoElement && data.video_width === 0)) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const videoRect = videoElement?.getBoundingClientRect();
-    const displayWidth =
-      videoRect?.width || canvas.parentElement?.clientWidth || 0;
-    const displayHeight =
-      videoRect?.height || canvas.parentElement?.clientHeight || 0;
-
-    canvas.width = displayWidth;
-    canvas.height = displayHeight;
-
-    const scaleX = displayWidth / (data.video_width || 1);
-    const scaleY = displayHeight / (data.video_height || 1);
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = "yellow";
-    ctx.lineWidth = 2;
-    data.zones.forEach((zone) => {
-      ctx.beginPath();
-      zone.polygon.forEach((point, index) => {
-        const [x, y] = point;
-        if (index === 0) ctx.moveTo(x * scaleX, y * scaleY);
-        else ctx.lineTo(x * scaleX, y * scaleY);
-      });
-      ctx.closePath();
-      ctx.stroke();
-      ctx.fillStyle = "yellow";
-      ctx.font = "14px Arial";
-      ctx.fillText(
-        zone.name,
-        zone.polygon[0][0] * scaleX,
-        zone.polygon[0][1] * scaleY - 5
-      );
-    });
-
-    data.tracks.forEach((track) => {
-      const [x1, y1, x2, y2] = track.bbox;
-      const color = track.is_violation
-        ? "red"
-        : track.is_close_to_violation
-        ? "orange"
-        : "cyan";
-      ctx.strokeStyle = color;
-      ctx.lineWidth = track.is_violation || track.is_close_to_violation ? 3 : 2;
-      ctx.strokeRect(
-        x1 * scaleX,
-        y1 * scaleY,
-        (x2 - x1) * scaleX,
-        (y2 - y1) * scaleY
-      );
-      ctx.fillStyle = "white";
-      ctx.font = "12px Arial";
-      const label = `${track.class_name}:${track.track_id} (${track.stationary_s}s)`;
-      ctx.fillText(label, x1 * scaleX, y1 * scaleY - 5);
-    });
-  };
-
-  useEffect(() => {
-    if (!selectedCamera?.is_running) {
-      setTrackingData(null);
-      return;
-    }
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/detector/tracking_data/${selectedCamera.cam_id}`
-        );
-        const data: TrackingData = await response.json();
-        setTrackingData(data);
-      } catch (error) {
-        setTrackingData(null);
-      }
-    }, 500);
-    return () => clearInterval(intervalId);
-  }, [selectedCamera?.cam_id, selectedCamera?.is_running]);
-
-  useEffect(() => {
-    if (trackingData) {
-      drawOverlays(trackingData);
-    }
-  }, [trackingData]);
 
   const startCameraDetector = async (cam_id: string) => {
     try {
@@ -302,9 +199,7 @@ export default function LiveFeed() {
                       {isLocalCamera ? (
                         <img
                           ref={videoRef}
-                          src={`${API_BASE_URL}${
-                            selectedCamera.stream_endpoint
-                          }?t=${new Date().getTime()}`}
+                          src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
                           alt="Live video feed"
                           className="absolute top-0 left-0 w-full h-full object-contain"
                         />
