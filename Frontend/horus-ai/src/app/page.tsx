@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import HlsPlayer from "@/components/HLSPlayer";
 import dynamic from "next/dynamic";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -118,7 +118,7 @@ const IncidentList = ({
     </div>
     <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
       {incidents.length > 0 ? (
-        incidents.map((incident, index) => {
+        incidents.sort((a, b) => new Date(a.event.started_at).getTime() - new Date(b.event.started_at).getTime()).reverse().map((incident, index) => {
           const urgency = getUrgencyInfo(incident.urgency_score);
           const UrgencyIcon = urgency.icon;
           const eventDetails = incident.event;
@@ -160,6 +160,7 @@ const IncidentList = ({
                               {new Date(
                                 eventDetails.started_at
                               ).toLocaleTimeString()}
+                              {/* {new Date(eventDetails.started_at).getTime()} */}
                             </span>
                           </div>
                         </div>
@@ -187,7 +188,7 @@ const IncidentList = ({
                   {llmData?.narrative && (
                     <div className="bg-gray-800/50 rounded-md p-3 border border-gray-700/50">
                       <p className="text-gray-300 text-sm leading-relaxed italic">
-                        "{llmData.narrative}"
+                        {`"${llmData.narrative}"`}
                       </p>
                     </div>
                   )}

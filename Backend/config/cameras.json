@@ -1,19 +1,10 @@
 [
-  {
-    "cam_id": "pasteur1",
-    "name": "Pasteur Street",
-    "address": "Jl. Pasteur No.33, Bandung, Indonesia",
-    "stream_url": "data/video/videopasteur.mkv",
-    "zones": [
-      "data/zones/zona1pasteur.json",
-      "data/zones/zona2pasteur.json"
-    ]
-  },
+
   {
     "cam_id": "viet1",
     "name": "Quang Trung Street",
     "address": "130 Quang Trung, Hải Châu, Đà Nẵng, Vietnam",
-    "stream_url": "data/video/vietnam3.mp4",
+    "stream_url": "data/video/vietnam11.mp4",
     "zones": [
       "data/zones/zona_enhanced.json",
       "data/zones/zona_vietnam1.json"
