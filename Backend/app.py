@@ -439,7 +439,7 @@ workers: dict[str, "DetectorWorker"] = {}
 SNAP_DIR = resolve_path(os.environ.get("SNAP_DIR", "snaps"))
 os.makedirs(SNAP_DIR, exist_ok=True)
 MOVE_PX_THRESH = int(os.environ.get("MOVE_PX_THRESH", "30"))
-MIN_STOP_S = float(os.environ.get("MIN_STOP_S", "10000"))
+MIN_STOP_S = float(os.environ.get("MIN_STOP_S", "50"))
 TARGET_CLASSES = set(os.environ.get("TARGET_CLASSES", "car,truck,bus").split(','))
 
 def point_in_polygon(x: int, y: int, polygon: list[list[int]]):
@@ -662,6 +662,7 @@ class DetectorWorker(threading.Thread):
                     checker_thread.start()
 
                 is_violation_by_time = st["stationary_s"] >= MIN_STOP_S
+                
 
                 if is_violation_by_time and not st.get("violation_reported", False):
                     st["violation_reported"] = True
