@@ -44,7 +44,8 @@ const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
 });
 
-const BACKEND_URL = "http://localhost:5001";
+const BACKEND_URL =
+  "https://horus-backend-395725017559.asia-southeast2.run.app";
 
 const getUrgencyInfo = (score: number) => {
   if (score >= 80) {
@@ -118,194 +119,204 @@ const IncidentList = ({
     </div>
     <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
       {incidents.length > 0 ? (
-        incidents.sort((a, b) => new Date(a.event.started_at).getTime() - new Date(b.event.started_at).getTime()).reverse().map((incident, index) => {
-          const urgency = getUrgencyInfo(incident.urgency_score);
-          const UrgencyIcon = urgency.icon;
-          const eventDetails = incident.event;
-          const llmData = incident.llm_data;
+        incidents
+          .sort(
+            (a, b) =>
+              new Date(a.event.started_at).getTime() -
+              new Date(b.event.started_at).getTime()
+          )
+          .reverse()
+          .map((incident, index) => {
+            const urgency = getUrgencyInfo(incident.urgency_score);
+            const UrgencyIcon = urgency.icon;
+            const eventDetails = incident.event;
+            const llmData = incident.llm_data;
 
-          return (
-            <div
-              key={eventDetails.event_id}
-              className="group relative overflow-hidden rounded-lg border border-gray-700 bg-tile1/80 hover:border-gray-600 hover:bg-tile1 transition-all duration-300"
-            >
+            return (
               <div
-                className={`absolute left-0 top-0 w-1 h-full ${urgency.color}`}
-              ></div>
-              <div
-                className="p-4 pl-5 cursor-pointer"
-                onClick={() => onIncidentClick(index)}
+                key={eventDetails.event_id}
+                className="group relative overflow-hidden rounded-lg border border-gray-700 bg-tile1/80 hover:border-gray-600 hover:bg-tile1 transition-all duration-300"
               >
-                <div className="flex items-start space-x-3 mb-4">
-                  <div
-                    className={`p-2 rounded-lg ${urgency.bgColor} flex-shrink-0`}
-                  >
-                    <UrgencyIcon className={`w-4 h-4 ${urgency.textColor}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white text-sm leading-tight mb-1">
-                          <FiMapPin className="inline w-3 h-3 mr-1" />
-                          {incident.address || "Lokasi tidak diketahui"}
-                        </h3>
-                        <div className="flex items-center space-x-3 text-xs text-gray-400 font-mono">
-                          <div className="flex items-center space-x-1">
-                            <FiCamera className="w-3 h-3" />
-                            <span>{eventDetails.cam_id}</span>
+                <div
+                  className={`absolute left-0 top-0 w-1 h-full ${urgency.color}`}
+                ></div>
+                <div
+                  className="p-4 pl-5 cursor-pointer"
+                  onClick={() => onIncidentClick(index)}
+                >
+                  <div className="flex items-start space-x-3 mb-4">
+                    <div
+                      className={`p-2 rounded-lg ${urgency.bgColor} flex-shrink-0`}
+                    >
+                      <UrgencyIcon className={`w-4 h-4 ${urgency.textColor}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-white text-sm leading-tight mb-1">
+                            <FiMapPin className="inline w-3 h-3 mr-1" />
+                            {incident.address || "Lokasi tidak diketahui"}
+                          </h3>
+                          <div className="flex items-center space-x-3 text-xs text-gray-400 font-mono">
+                            <div className="flex items-center space-x-1">
+                              <FiCamera className="w-3 h-3" />
+                              <span>{eventDetails.cam_id}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <FiClock className="w-3 h-3" />
+                              <span>
+                                {new Date(
+                                  eventDetails.started_at
+                                ).toLocaleTimeString()}
+                                {/* {new Date(eventDetails.started_at).getTime()} */}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <FiClock className="w-3 h-3" />
-                            <span>
-                              {new Date(
-                                eventDetails.started_at
-                              ).toLocaleTimeString()}
-                              {/* {new Date(eventDetails.started_at).getTime()} */}
+                        </div>
+                        <div className="flex flex-col items-end space-y-1">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-bold border ${getPriorityColor(
+                              llmData?.priority_label
+                            )}`}
+                          >
+                            {llmData?.priority_label?.toUpperCase() ||
+                              "UNKNOWN"}
+                          </span>
+                          <div className="flex items-center space-x-1 text-xs">
+                            <FiZap className={`w-3 h-3 ${urgency.textColor}`} />
+                            <span className={`font-bold ${urgency.textColor}`}>
+                              {incident.urgency_score}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end space-y-1">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-bold border ${getPriorityColor(
-                            llmData?.priority_label
-                          )}`}
-                        >
-                          {llmData?.priority_label?.toUpperCase() || "UNKNOWN"}
-                        </span>
-                        <div className="flex items-center space-x-1 text-xs">
-                          <FiZap className={`w-3 h-3 ${urgency.textColor}`} />
-                          <span className={`font-bold ${urgency.textColor}`}>
-                            {incident.urgency_score}
-                          </span>
-                        </div>
-                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="pl-9 space-y-3">
-                  {llmData?.narrative && (
-                    <div className="bg-gray-800/50 rounded-md p-3 border border-gray-700/50">
-                      <p className="text-gray-300 text-sm leading-relaxed italic">
-                        {`"${llmData.narrative}"`}
-                      </p>
-                    </div>
-                  )}
-
-                  {llmData?.reasons && llmData.reasons.length > 0 && (
-                    <div>
-                      <div className="text-gray-400 font-mono text-xs mb-2 flex items-center">
-                        <FiShield className="w-3 h-3 mr-1" />
-                        VIOLATION FACTORS
+                  <div className="pl-9 space-y-3">
+                    {llmData?.narrative && (
+                      <div className="bg-gray-800/50 rounded-md p-3 border border-gray-700/50">
+                        <p className="text-gray-300 text-sm leading-relaxed italic">
+                          {`"${llmData.narrative}"`}
+                        </p>
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {llmData.reasons.map((reason: string, idx: number) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded-full"
-                          >
-                            {reason}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                  {llmData?.recommended_actions &&
-                    llmData.recommended_actions.length > 0 && (
+                    {llmData?.reasons && llmData.reasons.length > 0 && (
                       <div>
                         <div className="text-gray-400 font-mono text-xs mb-2 flex items-center">
-                          <FiCheckCircle className="w-3 h-3 mr-1" />
-                          RECOMMENDED ACTIONS
+                          <FiShield className="w-3 h-3 mr-1" />
+                          VIOLATION FACTORS
                         </div>
-                        <div className="space-y-1">
-                          {llmData.recommended_actions.map(
-                            (action: string, idx: number) => (
-                              <div
+                        <div className="flex flex-wrap gap-1">
+                          {llmData.reasons.map(
+                            (reason: string, idx: number) => (
+                              <span
                                 key={idx}
-                                className="flex items-center space-x-2 text-xs text-gray-300"
+                                className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded-full"
                               >
-                                <div className="w-1 h-1 bg-green-400 rounded-full"></div>
-                                <span>{action}</span>
-                              </div>
+                                {reason}
+                              </span>
                             )
                           )}
                         </div>
                       </div>
                     )}
-                  <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-700/50">
-                    <div className="flex items-center space-x-3">
-                      <div className="flex items-center space-x-1">
-                        <span className="text-gray-400">CONFIDENCE:</span>
-                        <span
-                          className={`font-semibold ${
-                            llmData?.confidence === "high"
-                              ? "text-green-400"
-                              : llmData?.confidence === "medium"
-                              ? "text-yellow-400"
-                              : "text-red-400"
-                          }`}
-                        >
-                          {llmData?.confidence?.toUpperCase() || "UNKNOWN"}
-                        </span>
-                      </div>
-                      {llmData?.category && (
-                        <div className="flex items-center space-x-1">
-                          <FiTruck className="w-3 h-3 text-gray-400" />
-                          <span className="text-gray-300">
-                            {llmData.category}
-                          </span>
+
+                    {llmData?.recommended_actions &&
+                      llmData.recommended_actions.length > 0 && (
+                        <div>
+                          <div className="text-gray-400 font-mono text-xs mb-2 flex items-center">
+                            <FiCheckCircle className="w-3 h-3 mr-1" />
+                            RECOMMENDED ACTIONS
+                          </div>
+                          <div className="space-y-1">
+                            {llmData.recommended_actions.map(
+                              (action: string, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center space-x-2 text-xs text-gray-300"
+                                >
+                                  <div className="w-1 h-1 bg-green-400 rounded-full"></div>
+                                  <span>{action}</span>
+                                </div>
+                              )
+                            )}
+                          </div>
                         </div>
                       )}
-                    </div>
+                    <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-700/50">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-1">
+                          <span className="text-gray-400">CONFIDENCE:</span>
+                          <span
+                            className={`font-semibold ${
+                              llmData?.confidence === "high"
+                                ? "text-green-400"
+                                : llmData?.confidence === "medium"
+                                ? "text-yellow-400"
+                                : "text-red-400"
+                            }`}
+                          >
+                            {llmData?.confidence?.toUpperCase() || "UNKNOWN"}
+                          </span>
+                        </div>
+                        {llmData?.category && (
+                          <div className="flex items-center space-x-1">
+                            <FiTruck className="w-3 h-3 text-gray-400" />
+                            <span className="text-gray-300">
+                              {llmData.category}
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="text-gray-400 font-mono">
-                      {new Date(eventDetails.started_at).toLocaleDateString()}
+                      <div className="text-gray-400 font-mono">
+                        {new Date(eventDetails.started_at).toLocaleDateString()}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="px-4 pb-4 pl-14">
-                {eventDetails.snapshot_url && (
-                  <div className="pt-2">
-                    <img
-                      src={eventDetails.snapshot_url}
-                      alt={`Snapshot for ${eventDetails.event_id}`}
-                      className="w-full rounded-md border border-gray-600 bg-gray-800"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = "none";
+                <div className="px-4 pb-4 pl-14">
+                  {eventDetails.snapshot_url && (
+                    <div className="pt-2">
+                      <img
+                        src={eventDetails.snapshot_url}
+                        alt={`Snapshot for ${eventDetails.event_id}`}
+                        className="w-full rounded-md border border-gray-600 bg-gray-800"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-3 mt-4">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDecline(incident);
                       }}
-                    />
+                      className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAccept(incident);
+                      }}
+                      className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold"
+                    >
+                      Accept
+                    </button>
                   </div>
-                )}
-
-                <div className="flex items-center space-x-3 mt-4">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDecline(incident);
-                    }}
-                    className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold"
-                  >
-                    Decline
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAccept(incident);
-                    }}
-                    className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold"
-                  >
-                    Accept
-                  </button>
                 </div>
               </div>
-            </div>
-          );
-        })
+            );
+          })
       ) : (
         <div className="text-center text-gray-500 py-10">
           <FiUsers className="w-12 h-12 mx-auto mb-3 opacity-50" />

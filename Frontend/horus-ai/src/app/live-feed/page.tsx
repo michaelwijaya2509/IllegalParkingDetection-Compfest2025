@@ -31,7 +31,8 @@ interface Track {
   is_violation: boolean;
 }
 
-const API_BASE_URL = "http://localhost:5001";
+const API_BASE_URL =
+  "https://horus-backend-395725017559.asia-southeast2.run.app";
 
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);

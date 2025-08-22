@@ -13,7 +13,8 @@ import {
   FiMessageSquare,
 } from "react-icons/fi";
 
-const BACKEND_URL = "http://localhost:5001";
+const BACKEND_URL =
+  "https://horus-backend-395725017559.asia-southeast2.run.app";
 
 interface TrendData {
   date: string;
