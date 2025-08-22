@@ -17,6 +17,7 @@ import {
   FiWifiOff,
 } from "react-icons/fi";
 import Navigation from "@/components/Navigation";
+import { Loader } from "@/components/spinner";
 
 interface Track {
   track_id: number;
@@ -498,12 +499,14 @@ export default function Home() {
   const [selectedCCTV, setSelectedCCTV] = useState<any | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<any | null>(null);
+  const [wholePageLoading, setWholePageLoading] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
 
     const fetchCCTVData = async () => {
       try {
+        setWholePageLoading(true);
         console.log("Fetching CCTV data from backend...");
         const response = await fetch(`${BACKEND_URL}/cameras`);
         if (!response.ok) {
@@ -567,6 +570,8 @@ export default function Home() {
         );
       } catch (error) {
         console.error("Failed to fetch pending incidents:", error);
+      } finally {
+        setWholePageLoading(false);
       }
     };
 
@@ -577,78 +582,84 @@ export default function Home() {
   useEffect(() => {
     if (!isClient) return;
 
-    console.log("Connecting to SSE...");
-    const eventSource = new EventSource(`${BACKEND_URL}/events`);
+    let eventSource: EventSource | null = null;
+    const timeoutId = setTimeout(() => {
+      eventSource = new EventSource(`${BACKEND_URL}/events`);
 
-    eventSource.onopen = () => {
-      console.log("SSE Connection Established!");
-    };
+      eventSource.onopen = () => {
+        console.log("✅ SSE Connection Established!");
+      };
 
-    eventSource.onmessage = (event) => {
-      try {
-        const eventData = JSON.parse(event.data);
+      eventSource.onmessage = (event) => {
+        try {
+          const eventData = JSON.parse(event.data);
 
-        if (eventData.type === "violation_event") {
-          const scoredEvent = eventData.data;
-          const urgencyScore = scoredEvent.scored?.priority_score || 0;
+          if (eventData.type === "violation_event") {
+            const scoredEvent = eventData.data;
+            const urgencyScore = scoredEvent.scored?.priority_score || 0;
 
-          const incidentWithCoords = {
-            urgency_score: urgencyScore,
-            address:
-              scoredEvent.camera?.address ||
-              scoredEvent.event.location?.address ||
-              "Lokasi tidak diketahui",
-            coordinates: [scoredEvent.camera.lat, scoredEvent.camera.lon],
-            cam_id: scoredEvent.event.cam_id,
-            event: scoredEvent.event,
-            llm_data: {
-              priority_score: scoredEvent.scored?.priority_score || 0,
-              priority_label: scoredEvent.scored?.priority_label || "unknown",
-              narrative: scoredEvent.scored?.narrative || "",
-              reasons: scoredEvent.scored?.reasons || [],
-              recommended_actions:
-                scoredEvent.scored?.recommended_actions || [],
-              confidence: scoredEvent.scored?.confidence || "unknown",
-              category: scoredEvent.scored?.category || "",
-            },
-            timestamp: scoredEvent.event.started_at,
-            scored_at: scoredEvent.scored_at,
-          };
+            const incidentWithCoords = {
+              urgency_score: urgencyScore,
+              address:
+                scoredEvent.camera?.address ||
+                scoredEvent.event.location?.address ||
+                "Lokasi tidak diketahui",
+              coordinates: [scoredEvent.camera.lat, scoredEvent.camera.lon],
+              cam_id: scoredEvent.event.cam_id,
+              event: scoredEvent.event,
+              llm_data: {
+                priority_score: scoredEvent.scored?.priority_score || 0,
+                priority_label: scoredEvent.scored?.priority_label || "unknown",
+                narrative: scoredEvent.scored?.narrative || "",
+                reasons: scoredEvent.scored?.reasons || [],
+                recommended_actions:
+                  scoredEvent.scored?.recommended_actions || [],
+                confidence: scoredEvent.scored?.confidence || "unknown",
+                category: scoredEvent.scored?.category || "",
+              },
+              timestamp: scoredEvent.event.started_at,
+              scored_at: scoredEvent.scored_at,
+            };
 
-          setIncidents((prev) => {
-            const existingIndex = prev.findIndex(
-              (existing) =>
-                existing.event.event_id === incidentWithCoords.event.event_id
-            );
+            setIncidents((prev) => {
+              const existingIndex = prev.findIndex(
+                (existing) =>
+                  existing.event.event_id === incidentWithCoords.event.event_id
+              );
 
-            if (existingIndex !== -1) {
-              const updated = [...prev];
-              updated[existingIndex] = incidentWithCoords;
-              return updated;
-            } else {
-              return [incidentWithCoords, ...prev];
-            }
-          });
+              if (existingIndex !== -1) {
+                const updated = [...prev];
+                updated[existingIndex] = incidentWithCoords;
+                return updated;
+              } else {
+                return [incidentWithCoords, ...prev];
+              }
+            });
+          }
+        } catch (error) {
+          console.error(
+            "❌ Failed to parse SSE data:",
+            error,
+            "Raw data:",
+            event.data
+          );
         }
-      } catch (error) {
-        console.error(
-          "❌ Failed to parse SSE data:",
-          error,
-          "Raw data:",
-          event.data
-        );
-      }
-    };
+      };
 
-    eventSource.onerror = (err) => {
-      console.error("❌ SSE Error:", err);
-    };
+      eventSource.onerror = (err) => {
+        console.error("SSE Error:", err);
+      };
+    }, 1000);
 
     return () => {
-      console.log("🔌 Closing SSE connection.");
-      eventSource.close();
+      clearTimeout(timeoutId);
+      if (eventSource) {
+        console.log("🔌 Closing SSE connection.");
+        eventSource.close();
+      }
     };
   }, [isClient]);
+
 
   const handleMarkerClick = (index: number | null) => {
     if (index !== null) {
@@ -732,6 +743,9 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
+      {
+        wholePageLoading && <Loader />
+      }
 
       <main className="flex flex-col lg:flex-row w-full min-h-screen pt-24 mt-4 px-4 sm:px-6 lg:px-8 gap-6">
         <div className="w-full lg:w-2/5 xl:w-1/3 flex-shrink-0 transition-all duration-300">

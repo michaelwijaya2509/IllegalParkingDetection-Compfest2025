@@ -112,6 +112,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("horusai.app")
 
 app = Flask(__name__)
+
 CORS(app, resources={r"/*": {"origins": "*"}}) 
 
 MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1_fixed.pkl")
