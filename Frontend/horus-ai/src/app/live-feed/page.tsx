@@ -1,9 +1,8 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Navigation from "@/components/Navigation";
 import {
-  FiMaximize2,
-  FiMinimize2,
   FiCamera,
   FiWifi,
   FiWifiOff,
@@ -22,15 +21,6 @@ interface Camera {
   zones: string[];
   is_running: boolean;
   stream_endpoint: string | null;
-}
-
-interface Track {
-  track_id: number;
-  bbox: [number, number, number, number];
-  class_name: string;
-  stationary_s: number;
-  is_close_to_violation: boolean;
-  is_violation: boolean;
 }
 
 const API_BASE_URL =
