@@ -47,7 +47,7 @@ const Map = dynamic(() => import("@/components/Map"), {
 });
 
 const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast2.run.app";
+  "https://horus-backend-395725017559.asia-southeast1.run.app";
 
 const getUrgencyInfo = (score: number) => {
   if (score >= 80) {

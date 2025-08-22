@@ -24,7 +24,7 @@ interface Camera {
 }
 
 const API_BASE_URL =
-  "https://horus-backend-395725017559.asia-southeast2.run.app";
+  "https://horus-backend-395725017559.asia-southeast1.run.app";
 
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);

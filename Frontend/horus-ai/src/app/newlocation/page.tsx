@@ -132,7 +132,7 @@ export default function AddNewLocation() {
 
     try {
       const backendUrl =
-        "https://horus-backend-395725017559.asia-southeast2.run.app";
+        "https://horus-backend-395725017559.asia-southeast1.run.app";
       const response = await fetch(`${backendUrl}/detector/resolve_url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -195,7 +195,7 @@ export default function AddNewLocation() {
 
     try {
       const backendUrl =
-        "https://horus-backend-395725017559.asia-southeast2.run.app";
+        "https://horus-backend-395725017559.asia-southeast1.run.app";
       const response = await fetch(`${backendUrl}/cameras/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
