@@ -626,6 +626,7 @@ def add_camera():
             "name": data["cameraName"],
             "address": data["address"],
             "stream_url": data["streamUrl"],
+            "zones": []
         }
 
         with open(CAMCFG_PATH, "r+", encoding="utf-8") as f:
