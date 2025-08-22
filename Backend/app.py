@@ -364,7 +364,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("horusai.app")
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})  # Izinkan semua origin untuk semua route
+CORS(app, resources={r"/*": {"origins": "*"}})  # Izinkan semua origin untuk semua route
 
 MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1.pkl")
 MODEL_EVENT_INFERENCE = None

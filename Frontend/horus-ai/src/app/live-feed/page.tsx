@@ -11,6 +11,8 @@ import {
   FiLoader,
 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
+import Image from "next/image";
+import { Loader } from "@/components/spinner";
 
 interface Camera {
   cam_id: string;
@@ -37,17 +39,18 @@ const API_BASE_URL =
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [wholePageLoading, setWholePageLoading] = useState(false);
 
   const [resolvedHlsUrl, setResolvedHlsUrl] = useState<string | null>(null);
   const [isHlsLoading, setIsHlsLoading] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     async function fetchCameras() {
       try {
+        console.log("Fetching cameras ...")
+        setWholePageLoading(true);
         const response = await fetch(`${API_BASE_URL}/cameras`);
         const data: Camera[] = await response.json();
         setCameras(data);
@@ -56,6 +59,9 @@ export default function LiveFeed() {
         }
       } catch (error) {
         console.error("Failed to fetch cameras:", error);
+      } finally {
+        console.log("done fetching camera")
+        setWholePageLoading(false);
       }
     }
     fetchCameras();
@@ -68,10 +74,12 @@ export default function LiveFeed() {
         selectedCamera.cam_id === "pasteur1" ||
         selectedCamera.cam_id === "viet1"
       ) {
+        console.log("Skipping HLS URL resolution for local camera:", selectedCamera?.cam_id);
+        setIsHlsLoading(false);
         setResolvedHlsUrl(null);
         return;
       }
-
+      console.log("Resolving HLS URL for:", selectedCamera.cam_id);
       setIsHlsLoading(true);
       setResolvedHlsUrl(null);
       try {
@@ -90,9 +98,10 @@ export default function LiveFeed() {
         console.error("Error resolving HLS URL:", error);
       } finally {
         setIsHlsLoading(false);
+        console.log("HLS URL resolved:", resolvedHlsUrl);
       }
     };
-
+    console.log("Selected camera:", selectedCamera);
     if (selectedCamera?.is_running) {
       resolveUrlForPlayer();
     }
@@ -100,6 +109,8 @@ export default function LiveFeed() {
 
   const startCameraDetector = async (cam_id: string) => {
     try {
+
+      setIsHlsLoading(true);
       const camToStart = cameras.find((c) => c.cam_id === cam_id);
       if (camToStart) setSelectedCamera(camToStart);
 
@@ -117,15 +128,20 @@ export default function LiveFeed() {
       if (newSelected) setSelectedCamera(newSelected);
     } catch (error) {
       console.error("Failed to start camera detector:", error);
+    } finally {
+      console.log("finished")
+      setIsHlsLoading(false);
     }
   };
 
   const handleSelectCamera = (camera: Camera) => {
     if (!camera.is_running) {
+      console.log("Starting camera detector")
       startCameraDetector(camera.cam_id);
     } else {
       setSelectedCamera(camera);
     }
+    setIsHlsLoading(true);
   };
 
   const isLocalCamera =
@@ -133,6 +149,9 @@ export default function LiveFeed() {
 
   return (
     <div className="min-h-screen bg-primary">
+      {
+        wholePageLoading && <Loader />
+      }
       <Navigation />
       <main className="pt-20 p-12 mt-10">
         <div className="max-w-10xl mx-auto">
@@ -164,7 +183,7 @@ export default function LiveFeed() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-sm">{camera.name}</p>
-                          <p className="text-xs opacity-75 truncate">
+                          <p className="text-xs opacity-75">
                             {camera.address}
                           </p>
                         </div>
@@ -197,12 +216,14 @@ export default function LiveFeed() {
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                   {selectedCamera?.is_running ? (
                     <>
-                      {isLocalCamera ? (
-                        <img
-                          ref={videoRef}
+                      {(isLocalCamera) ? (
+                        <Image
                           src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
                           alt="Live video feed"
-                          className="absolute top-0 left-0 w-full h-full object-contain"
+                          fill
+                          className="object-contain"
+                          unoptimized
+                          priority
                         />
                       ) : isHlsLoading ? (
                         <div className="w-full h-full flex items-center justify-center">
