@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // File: app/upcoming-events/page.tsx
 
 "use client";
@@ -11,7 +12,6 @@ import {
   FiLoader,
   FiXCircle,
   FiGlobe,
-  FiStar,
   FiRefreshCw,
 } from "react-icons/fi";
 

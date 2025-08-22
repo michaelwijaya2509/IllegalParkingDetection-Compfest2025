@@ -12,13 +12,11 @@ import {
   FiX,
   FiMapPin,
   FiAlertTriangle,
-  FiLogOut,
   FiChevronDown,
   FiClock,
 } from "react-icons/fi";
 import Image from "next/image";
 import Logo from "../../public/horus-ai.png";
-import { icon } from "leaflet";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

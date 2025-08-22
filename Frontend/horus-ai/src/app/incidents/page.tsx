@@ -1,12 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @next/next/no-img-element */
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import {
-  FiAlertTriangle,
   FiMapPin,
   FiClock,
   FiEye,
-  FiFilter,
   FiLoader,
   FiXCircle,
   FiCheckCircle,

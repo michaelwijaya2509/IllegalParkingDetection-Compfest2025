@@ -1,15 +1,12 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
-import { useState, useRef, MouseEvent, ChangeEvent, FormEvent } from "react";
+import { useState, useRef, MouseEvent, FormEvent } from "react";
 import Navigation from "@/components/Navigation";
 import HlsPlayer from "@/components/HLSPlayer";
 import {
-  FiCamera,
-  FiMap,
-  FiLink,
   FiPlusCircle,
   FiXCircle,
   FiRotateCcw,
-  FiUpload,
   FiLoader,
   FiVideo,
 } from "react-icons/fi";
