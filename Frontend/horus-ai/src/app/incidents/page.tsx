@@ -13,7 +13,7 @@ import {
 } from "react-icons/fi";
 
 const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app";
+  "https://horus-backend-395725017559.asia-southeast1.run.app/";
 
 interface ApprovedIncident {
   event: {

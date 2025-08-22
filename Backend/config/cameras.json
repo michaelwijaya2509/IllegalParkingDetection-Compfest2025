@@ -1,13 +1,39 @@
 [
-
   {
     "cam_id": "viet1",
     "name": "Quang Trung Street",
-    "address": "130 Quang Trung, Hải Châu, Đà Nẵng, Vietnam",
+    "address": "130 Quang Trung, H\u1ea3i Ch\u00e2u, \u0110\u00e0 N\u1eb5ng, Vietnam",
     "stream_url": "data/video/vietnam11.mp4",
     "zones": [
       "data/zones/zona_enhanced.json",
       "data/zones/zona_vietnam1.json"
     ]
+  },
+  {
+    "cam_id": "asia-afrika-1755859938",
+    "name": "Asia Afrika",
+    "address": "Jln Asia Afrika",
+    "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/AsiaAfrikaBRITowerdua.m3u8",
+    "zones": []
+  },
+  {
+    "cam_id": "jln-random-1755859992",
+    "name": "Jln random",
+    "address": "random",
+    "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/DlOtis.m3u8",
+    "zones": []
+  },
+  {
+    "cam_id": "asia-afrika-2-1755860502",
+    "name": "Asia Afrika 2",
+    "address": "Asia Afrika 2 Jlan",
+    "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/asiaafrika.m3u8",
+    "zones": []
+  },
+  {
+    "cam_id": "asia-afrika-3-1755861309",
+    "name": "Asia Afrika 3",
+    "address": "Jln Asia Afrika 3",
+    "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/asiaafrika.m3u8"
   }
 ]

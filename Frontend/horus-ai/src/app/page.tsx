@@ -47,7 +47,7 @@ const Map = dynamic(() => import("@/components/Map"), {
 });
 
 const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app";
+  "https://horus-backend-395725017559.asia-southeast1.run.app/";
 
 const getUrgencyInfo = (score: number) => {
   if (score >= 80) {
@@ -661,7 +661,6 @@ export default function Home() {
     };
   }, [isClient]);
 
-
   const handleMarkerClick = (index: number | null) => {
     if (index !== null) {
       const cctv = cctvLocations[index];
@@ -744,9 +743,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
-      {
-        wholePageLoading && <Loader />
-      }
+      {wholePageLoading && <Loader />}
 
       <main className="flex flex-col lg:flex-row w-full min-h-screen pt-24 mt-4 px-4 sm:px-6 lg:px-8 gap-6">
         <div className="w-full lg:w-2/5 xl:w-1/3 flex-shrink-0 transition-all duration-300">

@@ -18,19 +18,18 @@ interface Camera {
   name: string;
   address: string;
   stream_url: string;
-  zones: string[];
   is_running: boolean;
   stream_endpoint: string | null;
 }
 
 const API_BASE_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app";
+  "https://horus-backend-395725017559.asia-southeast1.run.app/";
 
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [wholePageLoading, setWholePageLoading] = useState(false);
-
   const [resolvedHlsUrl, setResolvedHlsUrl] = useState<string | null>(null);
   const [isHlsLoading, setIsHlsLoading] = useState(false);
 
@@ -39,67 +38,26 @@ export default function LiveFeed() {
   useEffect(() => {
     async function fetchCameras() {
       try {
-        console.log("Fetching cameras ...")
+        console.log("Fetching cameras ...");
         setWholePageLoading(true);
         const response = await fetch(`${API_BASE_URL}/cameras`);
         const data: Camera[] = await response.json();
         setCameras(data);
         if (data.length > 0 && !selectedCamera) {
-          handleSelectCamera(data[0]);
+          setSelectedCamera(data[0]);
         }
       } catch (error) {
         console.error("Failed to fetch cameras:", error);
       } finally {
-        console.log("done fetching camera")
+        console.log("done fetching camera");
         setWholePageLoading(false);
       }
     }
     fetchCameras();
   }, []);
 
-  useEffect(() => {
-    const resolveUrlForPlayer = async () => {
-      if (
-        !selectedCamera ||
-        selectedCamera.cam_id === "pasteur1" ||
-        selectedCamera.cam_id === "viet1"
-      ) {
-        console.log("Skipping HLS URL resolution for local camera:", selectedCamera?.cam_id);
-        setIsHlsLoading(false);
-        setResolvedHlsUrl(null);
-        return;
-      }
-      console.log("Resolving HLS URL for:", selectedCamera.cam_id);
-      setIsHlsLoading(true);
-      setResolvedHlsUrl(null);
-      try {
-        const response = await fetch(`${API_BASE_URL}/detector/resolve_url`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: selectedCamera.stream_url }),
-        });
-        const data = await response.json();
-        if (data.ok) {
-          setResolvedHlsUrl(data.stream_url);
-        } else {
-          console.error("Failed to resolve HLS URL:", data.error);
-        }
-      } catch (error) {
-        console.error("Error resolving HLS URL:", error);
-      } finally {
-        setIsHlsLoading(false);
-        console.log("HLS URL resolved:", resolvedHlsUrl);
-      }
-    };
-    console.log("Selected camera:", selectedCamera);
-    if (selectedCamera?.is_running) {
-      resolveUrlForPlayer();
-    }
-  }, [selectedCamera?.cam_id, selectedCamera?.is_running]);
-
   const startCameraDetector = async (cam_id: string) => {
     try {
-
       setIsHlsLoading(true);
       const camToStart = cameras.find((c) => c.cam_id === cam_id);
       if (camToStart) setSelectedCamera(camToStart);
@@ -119,14 +77,14 @@ export default function LiveFeed() {
     } catch (error) {
       console.error("Failed to start camera detector:", error);
     } finally {
-      console.log("finished")
+      console.log("finished");
       setIsHlsLoading(false);
     }
   };
 
   const handleSelectCamera = (camera: Camera) => {
     if (!camera.is_running) {
-      console.log("Starting camera detector")
+      console.log("Starting camera detector");
       startCameraDetector(camera.cam_id);
     } else {
       setSelectedCamera(camera);
@@ -134,14 +92,17 @@ export default function LiveFeed() {
     setIsHlsLoading(true);
   };
 
-  const isLocalCamera =
-    selectedCamera?.cam_id === "pasteur1" || selectedCamera?.cam_id === "viet1";
+  const isHlsStream =
+    selectedCamera?.is_running &&
+    selectedCamera.stream_url &&
+    selectedCamera.stream_url.startsWith("http");
+
+  const isLocalStream =
+    selectedCamera?.is_running && selectedCamera.stream_endpoint;
 
   return (
     <div className="min-h-screen bg-primary">
-      {
-        wholePageLoading && <Loader />
-      }
+      {wholePageLoading && <Loader />}
       <Navigation />
       <main className="pt-20 p-12 mt-10">
         <div className="max-w-10xl mx-auto">
@@ -173,9 +134,7 @@ export default function LiveFeed() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-sm">{camera.name}</p>
-                          <p className="text-xs opacity-75">
-                            {camera.address}
-                          </p>
+                          <p className="text-xs opacity-75">{camera.address}</p>
                         </div>
                         <div className="flex items-center">
                           {camera.is_running ? (
@@ -206,31 +165,28 @@ export default function LiveFeed() {
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                   {selectedCamera?.is_running ? (
                     <>
-                      {(isLocalCamera) ? (
-                        <Image
+                      {isLocalStream && (
+                        <img
                           src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
                           alt="Live video feed"
-                          fill
-                          className="object-contain"
-                          unoptimized
-                          priority
+                          className="absolute top-0 left-0 w-full h-full object-contain"
                         />
-                      ) : isHlsLoading ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <FiLoader className="w-10 h-10 text-gray-400 animate-spin" />
-                        </div>
-                      ) : resolvedHlsUrl ? (
-                        <HlsPlayer src={resolvedHlsUrl} />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400">
-                          Failed to load stream.
-                        </div>
+                      )}
+
+                      {isHlsStream && (
+                        <HlsPlayer src={selectedCamera.stream_url} />
                       )}
 
                       <canvas
                         ref={canvasRef}
-                        className="absolute top-0 left-0 w-full h-full"
+                        className="absolute top-0 left-0 w-full h-full pointer-events-none"
                       />
+
+                      {!isLocalStream && !isHlsStream && (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          Error: Stream running but URL is invalid.
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
