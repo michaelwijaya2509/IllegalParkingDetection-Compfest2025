@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
@@ -8,7 +9,6 @@ import {
   FiAlertTriangle,
   FiLoader,
   FiXCircle,
-  FiList,
   FiTag,
   FiMessageSquare,
 } from "react-icons/fi";
