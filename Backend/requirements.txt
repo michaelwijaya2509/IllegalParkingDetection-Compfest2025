@@ -26,6 +26,7 @@ beautifulsoup4
 
 # --- Google Generative AI
 google-genai
+google-generativeai
 google-cloud-secret-manager
 google-cloud-storage
 
@@ -33,3 +34,4 @@ google-cloud-storage
 mcp
 
 gunicorn
+

@@ -806,14 +806,14 @@ def get_analytics_summary():
 @app.post("/events/refresh_cache")
 def refresh_upcoming_events_cache():
 
-    gemini_api_key = os.environ.get("GEMIINI_API_KEY")
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
         return jsonify({"error": "GEMINI_API_KEY variable not set."}), 500
 
     try:
         log.info("Starting expensive MCP event fetch to refresh cache...")
         python_executable = sys.executable
-        client_script_path = resolve_path("mcp_events_client.py")
+        client_script_path = resolve_path("utils/mcp_events_client.py")
 
         process = subprocess.run(
             [python_executable, client_script_path, "--gemini-api-key", gemini_api_key],
