@@ -8,12 +8,12 @@ from mcp.client.stdio import StdioServerParameters
 from mcp.client import stdio
 import argparse
 
-async def fetch_events_for_web():
+async def fetch_events_for_web(api_key: str):
 
 
     server_params = StdioServerParameters(
         command="python",
-        args=["mcp_event_detector.py", "--gemini-api-key", "AIzaSyDb8HvnyDX1orqYMGerKL7z7-OZNWidQqo"]
+        args=["mcp_event_detector.py", "--gemini-api-key", api_key]
     )
 
     try:
@@ -35,9 +35,14 @@ async def fetch_events_for_web():
         sys.exit(1)
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Fetch MCP events for web display.")
+    parser.add_argument("--gemini-api-key", type=str, required=True, help="Gemini API key to use")
+    args = parser.parse_args()
+
     
     try:
-        asyncio.run(fetch_events_for_web())
+        asyncio.run(fetch_events_for_web(api_key=args.gemini_api_key))
     except Exception as e:
         print(json.dumps({"error": f"Fatal client error: {str(e)}"}))
         sys.exit(1)
