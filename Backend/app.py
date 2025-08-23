@@ -650,7 +650,35 @@ def add_camera():
         return jsonify({"ok": False, "error": str(e)}), 500
     
 
+@app.post("/cameras/delete")
+def delete_camera():
+    global CAMCFG
+    try:
+        data = request.get_json(force=True)
+        cam_id_to_delete = data.get("cam_id")
+        if not cam_id_to_delete:
+            return jsonify({"ok": False, "error": "cam_id is required"}), 400
 
+        with open(CAMCFG_PATH, "r", encoding="utf-8") as f:
+            all_cameras = json.load(f)
+
+        updated_cameras = [cam for cam in all_cameras if cam.get("cam_id") != cam_id_to_delete]
+
+        if len(updated_cameras) == len(all_cameras):
+            return jsonify({"ok": False, "error": "Camera not found"}), 404
+
+        with open(CAMCFG_PATH, "w", encoding="utf-8") as f:
+            json.dump(updated_cameras, f, indent=2)
+            f.truncate()
+        
+        CAMCFG = {c["cam_id"]: c for c in updated_cameras}
+        log.info("Successfully deleted camera '%s' and reloaded config.", cam_id_to_delete)
+        
+        return jsonify({"ok": True, "message": "Camera deleted successfully."})
+
+    except Exception as e:
+        log.exception("Failed to delete camera: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.post("/cameras/reload")
 def cameras_reload():

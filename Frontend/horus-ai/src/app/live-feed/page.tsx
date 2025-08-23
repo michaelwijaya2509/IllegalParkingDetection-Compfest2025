@@ -7,6 +7,7 @@ import {
   FiWifi,
   FiWifiOff,
   FiPlayCircle,
+  FiTrash2,
   FiLoader,
 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
@@ -92,6 +93,38 @@ export default function LiveFeed() {
     setIsHlsLoading(true);
   };
 
+  const handleDeleteCamera = async (cam_idToDelete: string) => {
+    if (!window.confirm("Are you sure you want to delete this camera?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/cameras/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cam_id: cam_idToDelete }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.ok) {
+        setCameras((currentCameras) =>
+          currentCameras.filter((cam) => cam.cam_id !== cam_idToDelete)
+        );
+
+        if (selectedCamera?.cam_id === cam_idToDelete) {
+          setSelectedCamera(null);
+        }
+        alert("Camera deleted successfully.");
+      } else {
+        throw new Error(result.error || "Failed to delete camera.");
+      }
+    } catch (error: any) {
+      console.error("Failed to delete camera:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
   const isHlsStream =
     selectedCamera?.is_running &&
     selectedCamera.stream_url &&
@@ -132,17 +165,29 @@ export default function LiveFeed() {
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{camera.name}</p>
-                          <p className="text-xs opacity-75">{camera.address}</p>
-                        </div>
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-3">
                           {camera.is_running ? (
-                            <FiWifi className="w-4 h-4 text-green-400" />
+                            <FiWifi className="w-4 h-4 text-green-400 flex-shrink-0" />
                           ) : (
-                            <FiPlayCircle className="w-4 h-4 text-gray-400" />
+                            <FiPlayCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
                           )}
+                          <div>
+                            <p className="font-medium text-sm">{camera.name}</p>
+                            <p className="text-xs opacity-75">
+                              {camera.address}
+                            </p>
+                          </div>
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCamera(camera.cam_id);
+                          }}
+                          className="p-2 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-colors"
+                          aria-label="Delete camera"
+                        >
+                          <FiTrash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </button>
                   ))}
