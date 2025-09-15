@@ -41,7 +41,6 @@ export default function Map({
   className,
   illegalParkingLocations,
   defaultViewingCoordinates,
-  cctvLocations,
   zoomLevel,
   onMarkerClick,
   onIncidentClick,

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { PropagateLoader } from "react-spinners";
 import { useMemo } from "react";
 
