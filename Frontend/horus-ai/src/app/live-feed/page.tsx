@@ -4,9 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Navigation from "@/components/Navigation";
 import {
   FiCamera,
-  FiWifi,
   FiWifiOff,
-  FiPlayCircle,
   FiTrash2,
 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
@@ -29,10 +27,7 @@ const API_BASE_URL =
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [wholePageLoading, setWholePageLoading] = useState(false);
-  const [resolvedHlsUrl, setResolvedHlsUrl] = useState<string | null>(null);
-  const [isHlsLoading, setIsHlsLoading] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -59,7 +54,6 @@ export default function LiveFeed() {
 
   const startCameraDetector = async (cam_id: string) => {
     try {
-      setIsHlsLoading(true);
       const camToStart = cameras.find((c) => c.cam_id === cam_id);
       if (camToStart) setSelectedCamera(camToStart);
 
@@ -79,7 +73,6 @@ export default function LiveFeed() {
       console.error("Failed to start camera detector:", error);
     } finally {
       console.log("finished");
-      setIsHlsLoading(false);
     }
   };
 
@@ -90,7 +83,6 @@ export default function LiveFeed() {
     } else {
       setSelectedCamera(camera);
     }
-    setIsHlsLoading(true);
   };
 
   const handleDeleteCamera = async (cam_idToDelete: string) => {
@@ -217,7 +209,6 @@ export default function LiveFeed() {
                           height={0}
                           alt=" "
                           onError={() => {return <Loader />}}
-                          onLoad={() => setIsHlsLoading(false)}
                           priority
                           className="absolute top-0 left-0 w-full h-full object-contain"
                         />
