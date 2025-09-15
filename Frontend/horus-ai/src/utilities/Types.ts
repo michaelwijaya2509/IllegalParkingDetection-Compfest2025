@@ -1,4 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+export type OSMReturn = {
+  place_id: number;
+  license: string;
+  osm_type: string;
+  osm_id: number;
+  lat: string;
+  lon: string;
+  class: string;
+  type: string;
+  place_rank: number;
+  importance: number;
+  addresstype: string;
+  name: string;
+  display_name: string;
+  boundingbox: [string, string, string, string];
+}
+
 export type MapProps = {
   className?: string;
   defaultViewingCoordinates: [number, number];

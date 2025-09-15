@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "horus-backend-395725017559.asia-southeast1.run.app",
+        pathname: "/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

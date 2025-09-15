@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Geist_Mono } from "next/font/google";
+import { ToastContainer, Slide } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 import "./globals.css";
 
@@ -30,6 +32,20 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${poppins.variable} ${geistMono.variable}`}>
       <body className="antialiased bg-primary font-primary select-none">
+        <ToastContainer
+          position="top-center"
+          autoClose={4000}
+          hideProgressBar={true}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="dark"
+          transition={Slide}
+          toastStyle={{ fontFamily: 'var(--font-primary)', zIndex: 9999999 }}
+        />
         {children}
       </body>
     </html>

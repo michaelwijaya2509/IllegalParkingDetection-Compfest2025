@@ -147,7 +147,7 @@ export default function Map({
     const group = cctvGroupRef.current;
     group.clearLayers();
 
-    cctvLocations?.forEach((cctv, index) => {
+    illegalParkingLocations?.forEach((cctv, index) => {
       if (!cctv || !areCoordinatesValid(cctv.coordinates)) {
         console.warn("Skipping CCTV with invalid coordinates:", cctv);
         return;
@@ -182,7 +182,7 @@ export default function Map({
         });
       marker.addTo(group);
     });
-  }, [cctvLocations, onMarkerClick]);
+  }, [illegalParkingLocations, onMarkerClick]);
 
   useEffect(() => {
     (window as any).selectIncident = (index: number) => {

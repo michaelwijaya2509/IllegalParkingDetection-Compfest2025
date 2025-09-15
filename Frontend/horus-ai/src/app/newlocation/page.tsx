@@ -1,20 +1,59 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
-import { useState, useRef, FormEvent } from "react";
+import { useState, useRef, FormEvent, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import HlsPlayer from "@/components/HLSPlayer";
 import { FiPlusCircle, FiLoader } from "react-icons/fi";
+import Map from "@/components/Map";
+import { OSMReturn } from "@/utilities/Types";
 
 export default function AddNewLocation() {
   const [userInputUrl, setUserInputUrl] = useState("");
   const [previewStreamUrl, setPreviewStreamUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [locationNotFoundError, setLocationNotFoundError] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [locationAddress, setLocationAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{
     success: boolean;
     message: string;
   } | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (locationAddress.trim() === "") {
+      setLongitude("");
+      setLatitude("");
+      return;
+    }
+
+    const handler = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationAddress)}`
+        );
+        const data: OSMReturn[] = await response.json();
+
+        if (data.length > 0) {
+          setLongitude(data[0].lon);
+          setLatitude(data[0].lat);
+          setLocationAddress(data[0].display_name);
+          setLocationNotFoundError("");
+        } else {
+          setLongitude("");
+          setLatitude("");
+          setLocationNotFoundError(
+            "Cannot find location. Ensure the address is correct or set the coordinates manually."
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching coordinates:", error);
+      }
+    }, 1000);
+    return () => clearTimeout(handler);
+  }, [locationAddress]);
 
   const handleLoadUrl = () => {
     setErrorMessage("");
@@ -34,6 +73,7 @@ export default function AddNewLocation() {
     const data = Object.fromEntries(formData.entries());
 
     const finalData = { ...data, streamUrl: userInputUrl };
+    console.log(finalData);
 
     try {
       const backendUrl =
@@ -52,6 +92,8 @@ export default function AddNewLocation() {
         formRef.current?.reset();
         setUserInputUrl("");
         setPreviewStreamUrl("");
+        setLongitude("");
+        setLatitude("");
       } else {
         setSubmitStatus({
           success: false,
@@ -61,7 +103,7 @@ export default function AddNewLocation() {
     } catch (error) {
       setSubmitStatus({
         success: false,
-        message: "Could not connect to the backend.",
+        message: "An error occurred. Server possibly unreachable.",
       });
     } finally {
       setIsSubmitting(false);
@@ -82,7 +124,7 @@ export default function AddNewLocation() {
             </p>
           </div>
           <form ref={formRef} onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Column 1: The Form */}
               <div className="bg-tile1 border border-gray-700 rounded-lg p-8 space-y-6">
                 <div>
@@ -111,8 +153,48 @@ export default function AddNewLocation() {
                     type="text"
                     name="address"
                     id="address"
+                    value={locationAddress}
+                    onChange={(e) => setLocationAddress(e.target.value)}
+                    required
                     className="w-full bg-primary border border-gray-600 rounded-md text-white px-4 py-2"
                   />
+                  {locationNotFoundError && (
+                    <p className="text-red-500 text-xs mt-2">{locationNotFoundError}</p>
+                  )}
+                </div>
+                <div className="flex flex-row w-full gap-4">
+                  <div className="w-full">
+                    <label
+                      htmlFor="longitude"
+                      className="block text-sm font-medium text-gray-300 mb-2"
+                    >
+                      Longitude
+                    </label>
+                    <input
+                      type="text"
+                      name="longitude"
+                      id="longitude"
+                      value={longitude}
+                      onChange={(e) => setLongitude(e.target.value)}
+                      className="w-full bg-primary border border-gray-600 rounded-md text-white px-4 py-2"
+                    />
+                  </div>
+                  <div className="w-full">
+                    <label
+                      htmlFor="latitude"
+                      className="block text-sm font-medium text-gray-300 mb-2"
+                    >
+                      Latitude
+                    </label>
+                    <input
+                      type="text"
+                      name="latitude"
+                      id="latitude"
+                      value={latitude}
+                      onChange={(e) => setLatitude(e.target.value)}
+                      className="w-full bg-primary border border-gray-600 rounded-md text-white px-4 py-2"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label
@@ -121,7 +203,7 @@ export default function AddNewLocation() {
                   >
                     HLS Stream URL (.m3u8)
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-4">
                     <input
                       type="text"
                       id="userInputUrl"
@@ -134,7 +216,7 @@ export default function AddNewLocation() {
                     <button
                       type="button"
                       onClick={handleLoadUrl}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md flex items-center"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md flex items-center cursor-pointer transition"
                     >
                       Load
                     </button>
@@ -147,7 +229,7 @@ export default function AddNewLocation() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition disabled:opacity-60"
+                    className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? (
                       <FiLoader className="animate-spin mr-2" />
@@ -166,6 +248,17 @@ export default function AddNewLocation() {
                     </p>
                   )}
                 </div>
+              </div>
+
+              <div className="bg-tile1 border border-gray-700 rounded-lg p-8 max-h-[600px] flex flex-col">
+                <Map
+                  illegalParkingLocations={[]}
+                  defaultViewingCoordinates={[latitude ? parseInt(latitude) : 0, longitude ? parseInt(longitude) : 0]}
+                  cctvLocations={latitude ? [{coordinates: [parseInt(latitude), parseInt(longitude)]}] : []}
+                  zoomLevel={latitude ? 18 : 14}
+                  onMarkerClick={() => {}}
+                  onIncidentClick={() => {}}
+                />
               </div>
 
               <div className="bg-tile1 border border-gray-700 rounded-lg p-8 flex flex-col">
