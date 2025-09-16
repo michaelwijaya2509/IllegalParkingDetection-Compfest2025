@@ -19,6 +19,8 @@ import {
 } from "react-icons/fi";
 import Navigation from "@/components/Navigation";
 import { Loader } from "@/components/spinner";
+import { toast } from "react-toastify";
+import { ToastProps } from "@/utilities/Props";
 
 interface Track {
   track_id: number;
@@ -215,7 +217,7 @@ const IncidentList = ({
                             (reason: string, idx: number) => (
                               <span
                                 key={idx}
-                                className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded-full"
+                                className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded-lg md:rounded-full"
                               >
                                 {reason}
                               </span>
@@ -301,7 +303,7 @@ const IncidentList = ({
                         e.stopPropagation();
                         onDecline(incident);
                       }}
-                      className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold"
+                      className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
                     >
                       Decline
                     </button>
@@ -310,7 +312,7 @@ const IncidentList = ({
                         e.stopPropagation();
                         onAccept(incident);
                       }}
-                      className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold"
+                      className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
                     >
                       Accept
                     </button>
@@ -712,6 +714,8 @@ export default function Home() {
       setIncidents((prev) =>
         prev.filter((i) => i.event.event_id !== incident.event.event_id)
       );
+
+      toast.success("Incident recorded. View details in the incidents tab.", ToastProps);
     } catch (error) {
       console.error("Error accepting incident:", error);
       alert("Failed to accept the incident. Please try again.");
@@ -730,6 +734,8 @@ export default function Home() {
       setIncidents((prev) =>
         prev.filter((i) => i.event.event_id !== incident.event.event_id)
       );
+
+      toast.success("The false alarm has been logged successfully for further system improvements.", ToastProps);
     } catch (error) {
       console.error("Error declining incident:", error);
       alert("Failed to decline the incident. Please try again.");

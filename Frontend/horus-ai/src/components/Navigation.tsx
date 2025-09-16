@@ -16,7 +16,7 @@ import {
   FiClock,
 } from "react-icons/fi";
 import Image from "next/image";
-import Logo from "../../public/horus-ai.png";
+import Logo from "../../public/horus-ai.webp";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -50,7 +50,7 @@ const Navigation = () => {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-9999 px-4 sm:px-6 lg:px-8 bg-tile1 border-b border-gray-700 backdrop-blur-sm">
+      <nav className="fixed top-0 z-999 left-0 right-0 px-4 sm:px-6 lg:px-8 bg-tile1 border-b border-gray-700 backdrop-blur-sm">
         <div className="max-w-8xl mx-auto">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center">
@@ -58,8 +58,8 @@ const Navigation = () => {
                 <Image
                   src={Logo}
                   alt="Horus AI Logo"
-                  width={60}
-                  height={60}
+                  width={256}
+                  height={256}
                   className="h-40 w-40"
                   priority
                 />

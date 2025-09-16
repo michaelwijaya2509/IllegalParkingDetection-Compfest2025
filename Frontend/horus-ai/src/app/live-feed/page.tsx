@@ -1,18 +1,17 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Navigation from "@/components/Navigation";
 import {
   FiCamera,
-  FiWifi,
   FiWifiOff,
-  FiPlayCircle,
   FiTrash2,
-  FiLoader,
 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
 import Image from "next/image";
 import { Loader } from "@/components/spinner";
+import { FaCircleDot } from "react-icons/fa6";
 
 interface Camera {
   cam_id: string;
@@ -29,10 +28,7 @@ const API_BASE_URL =
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [wholePageLoading, setWholePageLoading] = useState(false);
-  const [resolvedHlsUrl, setResolvedHlsUrl] = useState<string | null>(null);
-  const [isHlsLoading, setIsHlsLoading] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -59,7 +55,6 @@ export default function LiveFeed() {
 
   const startCameraDetector = async (cam_id: string) => {
     try {
-      setIsHlsLoading(true);
       const camToStart = cameras.find((c) => c.cam_id === cam_id);
       if (camToStart) setSelectedCamera(camToStart);
 
@@ -79,7 +74,6 @@ export default function LiveFeed() {
       console.error("Failed to start camera detector:", error);
     } finally {
       console.log("finished");
-      setIsHlsLoading(false);
     }
   };
 
@@ -90,7 +84,6 @@ export default function LiveFeed() {
     } else {
       setSelectedCamera(camera);
     }
-    setIsHlsLoading(true);
   };
 
   const handleDeleteCamera = async (cam_idToDelete: string) => {
@@ -137,7 +130,7 @@ export default function LiveFeed() {
     <div className="min-h-screen bg-primary">
       {wholePageLoading && <Loader />}
       <Navigation />
-      <main className="pt-20 p-12 mt-10">
+      <main className="pt-20 lg:px-60 p-12 mt-10">
         <div className="max-w-10xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
@@ -155,10 +148,10 @@ export default function LiveFeed() {
                 </h2>
                 <div className="space-y-2">
                   {cameras.map((camera) => (
-                    <button
+                    <div
                       key={camera.cam_id}
                       onClick={() => handleSelectCamera(camera)}
-                      className={`w-full text-left p-3 rounded-lg transition-colors ${
+                      className={`w-full text-left p-3 rounded-lg transition cursor-pointer ${
                         selectedCamera?.cam_id === camera.cam_id
                           ? "bg-blue-600 text-white"
                           : "bg-tile2 text-gray-300 hover:bg-gray-700"
@@ -167,9 +160,9 @@ export default function LiveFeed() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           {camera.is_running ? (
-                            <FiWifi className="w-4 h-4 text-green-400 flex-shrink-0" />
+                            <FaCircleDot className="w-4 h-4 text-green-400 flex-shrink-0" />
                           ) : (
-                            <FiPlayCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <FaCircleDot className="w-4 h-4 text-red-400 flex-shrink-0" />
                           )}
                           <div>
                             <p className="font-medium text-sm">{camera.name}</p>
@@ -183,13 +176,13 @@ export default function LiveFeed() {
                             e.stopPropagation();
                             handleDeleteCamera(camera.cam_id);
                           }}
-                          className="p-2 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-colors"
+                          className="p-2 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition cursor-pointer"
                           aria-label="Delete camera"
                         >
                           <FiTrash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -211,9 +204,13 @@ export default function LiveFeed() {
                   {selectedCamera?.is_running ? (
                     <>
                       {isLocalStream && (
-                        <img
+                        <Image
                           src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
-                          alt="Live video feed"
+                          width={640}
+                          height={0}
+                          alt=" "
+                          onError={() => {return <Loader />}}
+                          priority
                           className="absolute top-0 left-0 w-full h-full object-contain"
                         />
                       )}
