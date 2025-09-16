@@ -4,8 +4,12 @@ import { useState, useRef, FormEvent, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import HlsPlayer from "@/components/HLSPlayer";
 import { FiPlusCircle, FiLoader } from "react-icons/fi";
-import Map from "@/components/Map";
 import { OSMReturn } from "@/utilities/Types";
+import dynamic from "next/dynamic";
+
+const Map = dynamic(() => import("@/components/Map"), {
+  ssr: false,
+});
 
 export default function AddNewLocation() {
   const [userInputUrl, setUserInputUrl] = useState("");
@@ -249,7 +253,7 @@ export default function AddNewLocation() {
                   )}
                 </div>
               </div>
-
+                    
               <div className="bg-tile1 border border-gray-700 rounded-lg p-8 max-h-[600px] flex flex-col">
                 <Map
                   illegalParkingLocations={[]}
