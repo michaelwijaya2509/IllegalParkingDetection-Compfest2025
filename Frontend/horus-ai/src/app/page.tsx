@@ -49,7 +49,7 @@ const Map = dynamic(() => import("@/components/Map"), {
 });
 
 const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app/";
+  "https://horus-backend-395725017559.asia-southeast1.run.app";
 
 const getUrgencyInfo = (score: number) => {
   if (score >= 80) {
@@ -567,10 +567,6 @@ export default function Home() {
           scored_at: scoredEvent.scored_at,
         }));
         setIncidents(formattedIncidents);
-        console.log(
-          "SUCCESS: Fetched initial pending incidents:",
-          formattedIncidents
-        );
       } catch (error) {
         console.error("Failed to fetch pending incidents:", error);
       } finally {

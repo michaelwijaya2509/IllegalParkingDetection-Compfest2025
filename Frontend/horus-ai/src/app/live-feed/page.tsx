@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
@@ -23,7 +24,7 @@ interface Camera {
 }
 
 const API_BASE_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app/";
+  "https://horus-backend-395725017559.asia-southeast1.run.app";
 
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -121,7 +122,7 @@ export default function LiveFeed() {
   const isHlsStream =
     selectedCamera?.is_running &&
     selectedCamera.stream_url &&
-    selectedCamera.stream_url.startsWith("http");
+    selectedCamera?.stream_url.startsWith("http");
 
   const isLocalStream =
     selectedCamera?.is_running && selectedCamera.stream_endpoint;
@@ -130,7 +131,7 @@ export default function LiveFeed() {
     <div className="min-h-screen bg-primary">
       {wholePageLoading && <Loader />}
       <Navigation />
-      <main className="pt-20 lg:px-60 p-12 mt-10">
+      <main className="pt-20 lg:px-40 p-12 mt-10">
         <div className="max-w-10xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
@@ -203,14 +204,25 @@ export default function LiveFeed() {
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                   {selectedCamera?.is_running ? (
                     <>
-                      {isLocalStream && (
-                        <Image
+                      {/* {isLocalStream && (
+                        <video
                           src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
                           width={640}
                           height={0}
+                          autoPlay
+                          // alt="a"
+                          // onError={() => {return <Loader />}}
+                          // priority
+                          className="absolute top-0 left-0 w-full h-full object-contain"
+                        />
+                      )} */}
+
+                      {isLocalStream && (
+                        <img
+                          src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
                           alt=" "
-                          onError={() => {return <Loader />}}
-                          priority
+                          // onError={() => {return <Loader />}}
+                          // priority
                           className="absolute top-0 left-0 w-full h-full object-contain"
                         />
                       )}
