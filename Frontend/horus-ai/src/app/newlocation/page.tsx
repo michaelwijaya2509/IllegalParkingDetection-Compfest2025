@@ -98,6 +98,8 @@ export default function AddNewLocation() {
         setPreviewStreamUrl("");
         setLongitude("");
         setLatitude("");
+        setLocationAddress("");
+        setLocationNotFoundError("");
       } else {
         setSubmitStatus({
           success: false,
