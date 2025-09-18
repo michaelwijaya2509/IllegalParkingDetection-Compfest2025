@@ -1,6 +1,8 @@
 # control-api/app.py  — backend ringan (routing, config, incidents, analytics)
 from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
+import subprocess
+import sys
 import os, json, time, logging
 from datetime import datetime, timedelta
 from collections import Counter

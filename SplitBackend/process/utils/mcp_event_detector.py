@@ -366,7 +366,7 @@ class EventsServer:
                 result_text = result_text[7:]
             if result_text.endswith('```'):
                 result_text = result_text[:-3]
-            
+            z
             result_text = result_text.strip()
             
             events = []

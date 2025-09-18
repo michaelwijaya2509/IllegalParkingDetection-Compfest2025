@@ -36,7 +36,7 @@ from google.cloud import storage, secretmanager
 # --------------------------------- Common utils ---------------------------------
 PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID", "horus-ai-468916")
 SECRET_ID  = os.environ.get("FIREBASE_SECRET_ID", "firebase-realtimedb-credentials")
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", 'horus-ai-storage')
 
 def access_secret_version(project_id, secret_id, version_id="latest"):
     client = secretmanager.SecretManagerServiceClient()
@@ -364,6 +364,12 @@ class DetectorWorker(threading.Thread):
                                 log.info("Snapshot uploaded: %s", snap_url)
                             else:
                                 log.error("Failed to encode snapshot JPEG")
+                        elif crop.size == 0:
+                            print("!!! IMPORTANT: Empty crop for snapshot")
+                        elif not gcs_bucket:
+                            print("!!! IMPORTANT: GCS bucket not configured, cannot upload snapshot")
+                        else:
+                            print("!!! IMPORTANT: Unknown issue in snapshot upload")
                     except Exception as e:
                         log.exception("Failed to upload snapshot: %s", e)
 
@@ -389,7 +395,7 @@ class DetectorWorker(threading.Thread):
                         snapshot_url=snap_url,
                         extra={"track_id": tr.track_id}
                     )
-
+                    print(" !!!!SNAP URL : ", snap_url)
                     scored_events = urgency_engine.score_events([(violation_event, is_traffic_jam)])
                     if scored_events:
                         scored = scored_events[0]

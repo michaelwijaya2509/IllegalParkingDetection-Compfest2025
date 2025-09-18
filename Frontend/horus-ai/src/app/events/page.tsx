@@ -100,7 +100,7 @@ export default function UpcomingEvents() {
           const now = new Date();
           const hoursDiff =
             (now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60);
-          if (hoursDiff > 24) {
+          if (hoursDiff > -1) {
             setIsCacheStale(true);
           }
         } else {
