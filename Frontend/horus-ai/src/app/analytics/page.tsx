@@ -13,8 +13,7 @@ import {
   FiMessageSquare,
 } from "react-icons/fi";
 
-const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app/";
+const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
 
 interface TrendData {
   date: string;
@@ -53,7 +52,7 @@ export default function Analytics() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${BACKEND_URL}/analytics/summary`);
+        const response = await fetch(`${PROCESS_URL}/analytics/summary`);
         if (!response.ok) {
           throw new Error("Failed to fetch analytics summary from the server.");
         }

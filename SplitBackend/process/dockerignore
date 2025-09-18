@@ -1,0 +1,7 @@
+# contoh: kalau ada dataset mentah super besar
+*.ipynb_checkpoints
+__pycache__/
+.vscode/
+*.tmp
+# kalau ada mp4 sangat besar yg tak dipakai demo, exclude saja
+# data/videos/very_large_*.mp4

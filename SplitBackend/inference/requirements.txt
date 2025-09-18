@@ -1,0 +1,37 @@
+# --- Web server & utils
+flask
+flask-cors
+requests
+python-slugify
+yt-dlp
+
+# --- CV / DL stack
+ultralytics
+opencv-python
+deep-sort-realtime
+numpy
+Pillow
+
+# --- PyTorch (CPU default). Ganti dengan wheel CUDA sesuai GPU-mu (lihat catatan di bawah).
+torch
+torchvision
+
+# --- Firebase
+firebase-admin
+
+# --- Async / parsing / HTML
+aiohttp
+feedparser
+beautifulsoup4
+
+# --- Google Generative AI
+google-genai
+google-generativeai
+google-cloud-secret-manager
+google-cloud-storage
+
+# --- MCP (Model Context Protocol) client & server
+mcp
+
+gunicorn
+

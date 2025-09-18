@@ -1,0 +1,65 @@
+{
+  "gunungkidul-1": {
+    "camera": {
+      "address": "Wonosari, Gunungkidul Regency, Special Region of Yogyakarta, Java, 55813, Indonesia",
+      "cam_id": "gunungkidul1",
+      "city": "",
+      "district": "",
+      "lat": -7.962478,
+      "lon": 110.603346
+    },
+    "context_hash": "dab1901595146c84925c2ade727487d06b2a85c23ff5b27f38d94817113ased3",
+    "event": {
+      "cam_id": "gunungkidul1",
+      "driver_left_vehicle": false,
+      "duration_s": 50,
+      "event_id": "gunungkidul-1",
+      "extra": {
+        "track_id": "1"
+      },
+      "snapshot_url": "https://i.imgur.com/SZSVZWf.png",
+      "started_at": "2025-08-20T17:44:00.546865",
+      "traffic_jam": false,
+      "zone_name": "zona_enhanced.json"
+    },
+    "scored": {
+      "priority_score": 28,
+      "priority_label": "low",
+      "narrative": "Kendaraan terdeteksi berhenti singkat di area Wonosari pada jalan kelas sekunder berdekatan dengan RSUD Wonosari. Karena pengemudi tetap berada di kendaraan dan tidak ada indikasi kemacetan serta durasi hanya ~50 detik (≤300s), urgensi penindakan rendah. Tetap direkomendasikan peringatan ringan dan pemantauan singkat untuk memastikan tidak berkembang menjadi pelanggaran lebih serius di dekat fasilitas kesehatan.",
+      "reasons": [
+        "Dekat rumah sakit (+20)",
+        "Berada di jalan kelas sekunder (+8)"
+      ],
+      "recommended_actions": [
+        "Sampaikan peringatan agar segera bergerak",
+        "Pantau 3–5 menit; eskalasi jika durasi > 300 dtk",
+        "Catat bukti (foto/log) untuk rekam insiden"
+      ],
+      "confidence": "medium",
+      "adjustment_reason": "Tidak ada kemacetan dan pengemudi tetap di dalam kendaraan; durasi ~50 detik (≤300) sehingga tidak ada penambahan skor perilaku/waktu.",
+      "base_breakdown": {
+        "poi_near_hospital": 20,
+        "road_secondary": 8,
+        "duration_over_300s": 0,
+        "driver_left_vehicle": 0,
+        "traffic_jam": 0
+      },
+      "dispatch_target": "Dishub/Satpol PP Wonosari",
+      "category": "Parkir_Liar",
+      "raw_model_json": {
+        "urgency_score": 28,
+        "narrative": "Kendaraan terdeteksi berhenti singkat di area Wonosari pada jalan kelas sekunder berdekatan dengan RSUD Wonosari. Karena pengemudi tetap berada di kendaraan dan tidak ada indikasi kemacetan serta durasi hanya ~50 detik (≤300s), urgensi penindakan rendah.",
+        "reasons": [
+          "Dekat rumah sakit (+20)",
+          "Berada di jalan kelas sekunder (+8)"
+        ],
+        "recommended_actions": [
+          "Sampaikan peringatan agar segera bergerak",
+          "Pantau 3–5 menit; eskalasi jika durasi > 300 dtk"
+        ],
+        "confidence": "medium"
+      }
+    },
+    "scored_at": "2025-08-20T10:45:00.299077"
+  }
+}

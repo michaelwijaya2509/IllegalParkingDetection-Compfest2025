@@ -10,7 +10,6 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
-import Image from "next/image";
 import { Loader } from "@/components/spinner";
 import { FaCircleDot } from "react-icons/fa6";
 
@@ -23,8 +22,7 @@ interface Camera {
   stream_endpoint: string | null;
 }
 
-const API_BASE_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app";
+const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
 
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -38,7 +36,7 @@ export default function LiveFeed() {
       try {
         console.log("Fetching cameras ...");
         setWholePageLoading(true);
-        const response = await fetch(`${API_BASE_URL}/cameras`);
+        const response = await fetch(`${PROCESS_URL}/cameras`);
         const data: Camera[] = await response.json();
         setCameras(data);
         if (data.length > 0 && !selectedCamera) {
@@ -59,13 +57,13 @@ export default function LiveFeed() {
       const camToStart = cameras.find((c) => c.cam_id === cam_id);
       if (camToStart) setSelectedCamera(camToStart);
 
-      await fetch(`${API_BASE_URL}/detector/start_by_id`, {
+      await fetch(`${PROCESS_URL}/detector/start_by_id`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cam_id: cam_id }),
       });
 
-      const response = await fetch(`${API_BASE_URL}/cameras`);
+      const response = await fetch(`${PROCESS_URL}/cameras`);
       const data = await response.json();
       setCameras(data);
 
@@ -93,7 +91,7 @@ export default function LiveFeed() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/cameras/delete`, {
+      const response = await fetch(`${PROCESS_URL}/cameras/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cam_id: cam_idToDelete }),
@@ -126,6 +124,11 @@ export default function LiveFeed() {
 
   const isLocalStream =
     selectedCamera?.is_running && selectedCamera.stream_endpoint;
+  
+  useEffect(() => {
+    if (!isLocalStream) return;
+    console.log(`${PROCESS_URL}${selectedCamera.stream_endpoint}`);
+  }, [isLocalStream]);
 
   return (
     <div className="min-h-screen bg-primary">
@@ -206,7 +209,7 @@ export default function LiveFeed() {
                     <>
                       {/* {isLocalStream && (
                         <video
-                          src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
+                          src={`${PROCESS_URL}${selectedCamera.stream_endpoint}`}
                           width={640}
                           height={0}
                           autoPlay
@@ -219,7 +222,7 @@ export default function LiveFeed() {
 
                       {isLocalStream && (
                         <img
-                          src={`${API_BASE_URL}${selectedCamera.stream_endpoint}`}
+                          src={`${PROCESS_URL}${selectedCamera.stream_endpoint}`}
                           alt=" "
                           // onError={() => {return <Loader />}}
                           // priority

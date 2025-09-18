@@ -1,0 +1,28 @@
+{
+  "polygon": [
+    [
+      312,
+      402
+    ],
+    [
+      518,
+      346
+    ],
+    [
+      1504,
+      1047
+    ],
+    [
+      802,
+      1075
+    ]
+  ],
+  "video_metadata": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30.0,
+    "total_frames": 607,
+    "video_path": "C:/Users/andre/Documents/Binus/Lomba/compfest/vietnam20.mp4"
+  },
+  "creation_timestamp": 35425279586100
+}

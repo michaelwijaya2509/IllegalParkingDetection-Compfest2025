@@ -48,8 +48,8 @@ const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
 });
 
-const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app";
+const INFERENCE_URL = process.env.NEXT_PUBLIC_INFERENCE_URL;
+const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
 
 const getUrgencyInfo = (score: number) => {
   if (score >= 80) {
@@ -413,12 +413,12 @@ const CctvPreview = ({
     const intervalId = setInterval(async () => {
       try {
         const response = await fetch(
-          `${BACKEND_URL}/detector/tracking_data/${cctv.cam_id}`
+          `${INFERENCE_URL}/detector/tracking_data/${cctv.cam_id}`
         );
         const data: TrackingData = await response.json();
         setTrackingData(data);
         setStreamUrl(
-          `${BACKEND_URL}${cctv.stream_endpoint}?t=${new Date().getTime()}`
+          `${PROCESS_URL}${cctv.stream_endpoint}?t=${new Date().getTime()}`
         );
 
         const hasViolation = data.tracks.some((track) => track.is_violation);
@@ -511,7 +511,7 @@ export default function Home() {
       try {
         setWholePageLoading(true);
         console.log("Fetching CCTV data from backend...");
-        const response = await fetch(`${BACKEND_URL}/cameras`);
+        const response = await fetch(`${PROCESS_URL}/cameras`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -540,7 +540,7 @@ export default function Home() {
     const fetchPendingIncidents = async () => {
       try {
         console.log("Fetching pending incidents from backend...");
-        const response = await fetch(`${BACKEND_URL}/incidents/pending`);
+        const response = await fetch(`${PROCESS_URL}/incidents/pending`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -583,7 +583,7 @@ export default function Home() {
 
     let eventSource: EventSource | null = null;
     const timeoutId = setTimeout(() => {
-      eventSource = new EventSource(`${BACKEND_URL}/events`);
+      eventSource = new EventSource(`${INFERENCE_URL}/events`);
 
       eventSource.onopen = () => {
         console.log("✅ SSE Connection Established!");
@@ -700,7 +700,7 @@ export default function Home() {
 
   const handleAccept = async (incident: any) => {
     try {
-      const response = await fetch(`${BACKEND_URL}/incident/accept`, {
+      const response = await fetch(`${PROCESS_URL}/incident/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ incident_data: incident }),
@@ -720,7 +720,7 @@ export default function Home() {
 
   const handleDecline = async (incident: any) => {
     try {
-      const response = await fetch(`${BACKEND_URL}/incident/decline`, {
+      const response = await fetch(`${PROCESS_URL}/incident/decline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ incident_data: incident }),

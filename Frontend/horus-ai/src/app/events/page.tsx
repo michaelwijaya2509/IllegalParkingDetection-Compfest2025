@@ -15,8 +15,7 @@ import {
   FiRefreshCw,
 } from "react-icons/fi";
 
-const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app/";
+const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
 
 interface Event {
   event_name: string;
@@ -76,7 +75,7 @@ export default function UpcomingEvents() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${BACKEND_URL}/events/upcoming`);
+      const response = await fetch(`${PROCESS_URL}/events/upcoming`);
       const eventsData: EventsData = await response.json();
       if (eventsData.error && eventsData.error !== "Cache is empty.") {
         throw new Error(eventsData.error);
@@ -93,7 +92,7 @@ export default function UpcomingEvents() {
     // Cek status cache saat halaman dimuat
     const checkCacheStatus = async () => {
       try {
-        const response = await fetch(`${BACKEND_URL}/events/cache_status`);
+        const response = await fetch(`${PROCESS_URL}/events/cache_status`);
         const status = await response.json();
         if (status.last_updated) {
           setLastUpdated(status.last_updated);
@@ -122,7 +121,7 @@ export default function UpcomingEvents() {
     setIsRefreshing(true);
     setError(null);
     try {
-      const response = await fetch(`${BACKEND_URL}/events/refresh_cache`, {
+      const response = await fetch(`${PROCESS_URL}/events/refresh_cache`, {
         method: "POST",
       });
       const result = await response.json();

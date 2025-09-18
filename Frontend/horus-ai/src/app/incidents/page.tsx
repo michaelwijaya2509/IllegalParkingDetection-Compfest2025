@@ -12,8 +12,7 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 
-const BACKEND_URL =
-  "https://horus-backend-395725017559.asia-southeast1.run.app/";
+const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
 
 interface ApprovedIncident {
   event: {
@@ -50,7 +49,7 @@ export default function Incidents() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${BACKEND_URL}/incidents/approved`);
+        const response = await fetch(`${PROCESS_URL}/incidents/approved`);
         if (!response.ok) {
           throw new Error("Failed to fetch approved incidents.");
         }

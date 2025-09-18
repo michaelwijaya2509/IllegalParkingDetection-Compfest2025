@@ -80,9 +80,9 @@ export default function AddNewLocation() {
     console.log(finalData);
 
     try {
-      const backendUrl =
-        "https://horus-backend-395725017559.asia-southeast1.run.app";
-      const response = await fetch(`${backendUrl}/cameras/add`, {
+      const PROCESS_URL =
+        process.env.NEXT_PUBLIC_PROCESS_URL;
+      const response = await fetch(`${PROCESS_URL}/cameras/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(finalData),
