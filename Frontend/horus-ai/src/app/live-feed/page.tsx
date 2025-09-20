@@ -134,7 +134,7 @@ export default function LiveFeed() {
     <div className="min-h-screen bg-primary">
       {wholePageLoading && <Loader />}
       <Navigation />
-      <main className="pt-20 lg:px-40 p-12 mt-10">
+      <main className="pt-28 lg:px-40 p-12">
         <div className="max-w-10xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">

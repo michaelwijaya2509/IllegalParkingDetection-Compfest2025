@@ -16,6 +16,7 @@ import {
   FiUsers,
   FiTruck,
   FiWifiOff,
+  FiLoader,
 } from "react-icons/fi";
 import Navigation from "@/components/Navigation";
 import { Loader } from "@/components/spinner";
@@ -23,6 +24,7 @@ import { toast } from "react-toastify";
 import { ToastProps } from "@/utilities/Props";
 import { LuListFilter } from "react-icons/lu";
 import FilterModal from "@/components/FilterModal";
+import Image from "next/image";
 
 interface Track {
   track_id: number;
@@ -107,6 +109,7 @@ const IncidentList = ({
   camIdFilter,
   setFilterState,
   onDecline,
+  isSubmitting,
 }: {
   incidents: any[];
   onIncidentClick: (index: number) => void;
@@ -115,6 +118,7 @@ const IncidentList = ({
   onAccept: (incident: any) => void;
   camIdFilter?: string;
   onDecline: (incident: any) => void;
+  isSubmitting: boolean;
 }) => (
   <div>
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6">
@@ -128,13 +132,16 @@ const IncidentList = ({
           </span>
         </div>
         <button className="flex gap-2 ml-auto cursor-pointer items-center justify-center" onClick={() => setFilterState()}>
-          <LuListFilter />
+          <LuListFilter className="text-gray-400" />
           <span className="text-gray-400 text-sm font-semibold"> Filter</span>
         </button>
       </div>
     </div>
     <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-      {incidents.length > 0 ? (
+      {incidents.filter((incident) => {
+        if (!camIdFilter) return true;
+        return incident.event.cam_id === camIdFilter;
+      }).length > 0 ? (
         incidents
           .filter((incident) => {
             if (!camIdFilter) return true;
@@ -154,7 +161,7 @@ const IncidentList = ({
 
             return (
               <div
-                key={eventDetails.event_id}
+                key={eventDetails.event_id + String(index)}
                 className="group p-5 relative overflow-hidden rounded-lg border border-gray-700 bg-tile1/80 hover:border-gray-600 hover:bg-tile1 transition-all duration-300"
               >
                 <div
@@ -171,7 +178,7 @@ const IncidentList = ({
                       >
                         <UrgencyIcon className={`w-4 h-4 ${urgency.textColor}`} />
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <h3 className="font-semibold text-white text-sm leading-tight mb-1">
@@ -194,7 +201,7 @@ const IncidentList = ({
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-row items-center justify-center gap-5">
+                          <div className="flex flex-row items-center justify-center gap-3">
                             <div className="flex items-center space-x-1 text-xs">
                               <FiZap className={`w-3 h-3 ${urgency.textColor}`} />
                               <span className={`font-bold ${urgency.textColor}`}>
@@ -215,8 +222,8 @@ const IncidentList = ({
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-row portrait:flex-col gap-5">
-                  <div className="space-y-3">
+                <div className="flex flex-row portrait:flex-col portrait:items-center gap-5">
+                  <div className="space-y-3 w-full">
                     {llmData?.narrative && (
                       <div className="bg-gray-800/50 rounded-md p-3 border border-gray-700/50">
                         <p className="text-gray-300 text-xs leading-relaxed italic">
@@ -299,14 +306,15 @@ const IncidentList = ({
                       </div>
                     </div>
                   </div>
-                {/* snapshot gambar */}
-                <div> 
-                  <div>
+                  {/* snapshot gambar */}
+                  <div className="landscape:ml-auto">
                     {eventDetails.snapshot_url && (
-                      <img
+                      <Image
                         src={eventDetails.snapshot_url}
                         alt={`Snapshot for ${eventDetails.event_id}`}
-                        className="w-full rounded-md border border-gray-600 bg-gray-800"
+                        width={200}
+                        height={0}
+                        className="landscape:max-w-[200px] rounded-md border border-gray-600 bg-gray-800"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";
@@ -314,28 +322,36 @@ const IncidentList = ({
                       />
                     )}
 
-                    <div className="flex items-center space-x-3 mt-4">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDecline(incident);
-                        }}
-                        className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
-                      >
-                        Decline
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAccept(incident);
-                        }}
-                        className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
-                      >
-                        Accept
-                      </button>
-                    </div>
+                    {
+                      !isSubmitting ? (
+                        <div className="flex items-center space-x-3 mt-4">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDecline(incident);
+                            }}
+                            className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAccept(incident);
+                            }}
+                            className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
+                          >
+                            Accept
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center mt-4">
+                          <FiLoader className="animate-spin" />
+                          <span className="ml-2 text-gray-400">Submitting...</span>
+                        </div>
+                      )
+                    }
                   </div>
-                </div>
                 </div>
               </div>
             );
@@ -524,6 +540,7 @@ export default function Home() {
   const [wholePageLoading, setWholePageLoading] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState<boolean>(false);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
+  const [incidentIdSubmitting, setIncidentIdSubmitting] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -666,10 +683,6 @@ export default function Home() {
           );
         }
       };
-
-      eventSource.onerror = (err) => {
-        console.error("SSE Error:", err);
-      };
     }, 1000);
 
     return () => {
@@ -722,6 +735,7 @@ export default function Home() {
 
   const handleAccept = async (incident: any) => {
     try {
+      setIncidentIdSubmitting(incident.event.event_id);
       const response = await fetch(`${PROCESS_URL}/incident/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -737,11 +751,14 @@ export default function Home() {
     } catch (error) {
       console.error("Error accepting incident:", error);
       alert("Failed to accept the incident. Please try again.");
+    } finally {
+      setIncidentIdSubmitting(null);
     }
   };
 
   const handleDecline = async (incident: any) => {
     try {
+      setIncidentIdSubmitting(incident.event.event_id);
       const response = await fetch(`${PROCESS_URL}/incident/decline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -757,6 +774,8 @@ export default function Home() {
     } catch (error) {
       console.error("Error declining incident:", error);
       alert("Failed to decline the incident. Please try again.");
+    } finally {
+      setIncidentIdSubmitting(null);
     }
   };
 
@@ -764,7 +783,7 @@ export default function Home() {
     return null;
   }
 
-  const filterByCamId = (cameraId: string) => {
+  const filterByCamId = (cameraId: string | null) => {
     setSelectedCameraId(cameraId);
     setIsFilterModalOpen(false);
     console.log("Selected Camera", cameraId);
@@ -782,12 +801,12 @@ export default function Home() {
           setOnBackgroundClick={() => setIsFilterModalOpen(false)}
           cameraIds={cctvLocations.length > 0 ? cctvLocations.map((cctv) => cctv.cam_id) : []}
           buttonLabel="Apply Filters"
-          setState={(camId: string) => filterByCamId(camId)}
+          setState={(camId: string | null) => filterByCamId(camId)}
           title="Camera Location Filters"
         />
       }
 
-      <main className="flex flex-row lg:flex-row w-full min-h-screen pt-24 mt-4 px-4 sm:px-6 lg:px-8 gap-6">
+      <main className="flex flex-row lg:flex-row w-full min-h-screen pt-28 px-4 sm:px-6 lg:px-8 gap-6">
         <div className="w-full lg:w-1/2 flex-shrink-0 transition-all duration-300 overflow-hidden">
           {selectedCCTV ? (
             <CctvPreview
@@ -804,6 +823,7 @@ export default function Home() {
               setFilterState={() => setIsFilterModalOpen(true)}
               camIdFilter={selectedCameraId || undefined}
               onDecline={handleDecline}
+              isSubmitting={incidentIdSubmitting === selectedIncident?.event.event_id}
             />
           )}
         </div>
@@ -822,6 +842,7 @@ export default function Home() {
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-tile1 text-gray-400">
+              <FiLoader className="animate-spin mr-2" />
               Loading map and CCTV data...
             </div>
           )}

@@ -89,7 +89,6 @@ export default function UpcomingEvents() {
   };
 
   useEffect(() => {
-    // Cek status cache saat halaman dimuat
     const checkCacheStatus = async () => {
       try {
         const response = await fetch(`${PROCESS_URL}/events/cache_status`);
@@ -100,11 +99,10 @@ export default function UpcomingEvents() {
           const now = new Date();
           const hoursDiff =
             (now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60);
-          if (hoursDiff > -1) {
+          if (hoursDiff > -1) { // ini nanti ganti lagi jadi 24
             setIsCacheStale(true);
           }
         } else {
-          // refresh cache
           setIsCacheStale(true);
         }
       } catch (err) {
@@ -143,7 +141,7 @@ export default function UpcomingEvents() {
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
-      <main className="pt-20 p-8 md:p-12 mt-10">
+      <main className="pt-28 p-8">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
@@ -162,7 +160,7 @@ export default function UpcomingEvents() {
             <button
               onClick={handleRefreshCache}
               disabled={isRefreshing || !isCacheStale}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-md transition-colors hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed"
+              className="flex cursor-pointer items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-md transition-colors hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed"
             >
               {isRefreshing ? (
                 <FiLoader className="animate-spin" />

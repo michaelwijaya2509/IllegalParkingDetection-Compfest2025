@@ -8,7 +8,7 @@ interface ModalProps {
   buttonLabel: string;
   isLoading: boolean;
   cameraIds: string[];
-  setState: (cameraId: string) => void;
+  setState: (cameraId: string | null) => void;
   setOnBackgroundClick?: () => void;
 }
 
@@ -24,6 +24,10 @@ const FilterModal: React.FC<ModalProps> = ({
   const [selectedCameraId, setSelectedCameraId] = useState<string>("");
 
   const handleClick = () => {
+    if (selectedCameraId === "All Cameras") {
+      setState(null);
+      return;
+    }
     if (selectedCameraId) {
       setState(selectedCameraId);
     }
@@ -36,7 +40,7 @@ const FilterModal: React.FC<ModalProps> = ({
       onClick={setOnBackgroundClick ? setOnBackgroundClick : () => navigate.back()}
     >
       <motion.div
-        className="py-8 px-10 w-96 shadow-xl rounded-md bg-primary"
+        className="py-8 px-10 w-96 shadow-xl rounded-lg border border-gray-700 bg-tile1/100 hover:border-gray-600"
         onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
@@ -45,7 +49,10 @@ const FilterModal: React.FC<ModalProps> = ({
         <div className="text-center">
           <h3 className="text-2xl font-bold text-secondary">{title}</h3>
 
-          {/* Dropdown using Headless UI Listbox */}
+          <p className="mt-2 text-sm text-gray-300">
+            Please select a camera from the list below
+          </p>
+
           <div className="mt-4">
             <Listbox
               value={selectedCameraId}
@@ -62,14 +69,14 @@ const FilterModal: React.FC<ModalProps> = ({
                   className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg 
                              max-h-60 overflow-auto font-primary z-50 text-left"
                 >
-                  {cameraIds.map((id, index) => (
+                  {["All Cameras", ...cameraIds].map((id, index) => (
                     <ListboxOption
                       key={id + index.toString()}
                       value={id}
                       className={({ active }) =>
                         `px-4 py-2 cursor-pointer ${
                           active
-                            ? "bg-blue-500 text-white"
+                            ? "bg-gray-200"
                             : "text-black hover:bg-gray-100"
                         }`
                       }
@@ -88,7 +95,7 @@ const FilterModal: React.FC<ModalProps> = ({
               disabled={isLoading || !selectedCameraId}
               className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 
                          text-green-400 border border-green-500/30 rounded-lg transition-all 
-                         duration-200 font-semibold hover:cursor-pointer disabled:opacity-50"
+                         duration-200 font-semibold hover:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {buttonLabel}
             </button>

@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { PropagateLoader } from "react-spinners";
+import { DotLoader } from "react-spinners";
 import { useMemo } from "react";
 
 export const Loader = () => {
@@ -9,6 +9,8 @@ export const Loader = () => {
     "Loading HORUS experience",
     "Gathering information",
     "Preparing data",
+    "Finalizing details",
+    "Just a moment"
   ];
 
   const randomMessage = useMemo(() => {
@@ -18,7 +20,7 @@ export const Loader = () => {
   return (
     <div className="fixed inset-0 text-white backdrop-opacity-80 backdrop-blur-lg backdrop-brightness-40 font-primary overflow-y-auto h-full w-full flex flex-col items-center justify-center z-[999] transition duration-300 ease-in-out">
       <p className="mb-10 text-white text-lg animate-pulse">{randomMessage}</p>
-      <PropagateLoader color="#FFFFFF" />
+      <DotLoader color="#FFFFFF" />
     </div>
   );
 };

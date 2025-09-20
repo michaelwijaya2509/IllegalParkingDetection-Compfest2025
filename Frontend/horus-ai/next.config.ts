@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
     ],
+    domains: ["storage.googleapis.com", "i.imgur.com"],
   },
 };
 

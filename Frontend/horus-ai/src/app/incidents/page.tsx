@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @next/next/no-img-element */
 "use client";
 import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
@@ -11,6 +10,7 @@ import {
   FiXCircle,
   FiCheckCircle,
 } from "react-icons/fi";
+import Image from "next/image";
 
 const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
 
@@ -75,7 +75,7 @@ export default function Incidents() {
     <div className="min-h-screen bg-primary">
       <Navigation />
 
-      <main className="pt-20 p-12 mt-10">
+      <main className="pt-28 p-12">
         <div className="max-w-10xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -153,7 +153,7 @@ export default function Incidents() {
                                 </div>
                               </div>
                             </div>
-                            <button className="p-2 bg-tile2 hover:bg-gray-700 rounded-lg transition-colors ml-4">
+                            <button className="p-2 bg-tile2 hover:bg-gray-700 rounded-lg transition-colors cursor-pointer ml-4">
                               <FiEye className="w-4 h-4 text-white" />
                             </button>
                           </div>
@@ -201,8 +201,10 @@ export default function Incidents() {
                     <div>
                       <label className="text-gray-400 text-sm">Evidence</label>
                       <div className="mt-2 aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
-                        <img
+                        <Image
                           src={selectedIncident.event.snapshot_url}
+                          width={600}
+                          height={0}
                           className="w-full h-full object-contain"
                           alt="Incident Snapshot"
                         />
