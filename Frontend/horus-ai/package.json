@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.8",
     "@types/react-spinner": "^0.2.4",
+    "framer-motion": "^12.23.16",
     "hls.js": "^1.6.8",
     "leaflet": "^1.9.4",
     "next": "15.4.5",

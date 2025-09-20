@@ -35,5 +35,12 @@
     "name": "Asia Afrika 3",
     "address": "Jln Asia Afrika 3",
     "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/asiaafrika.m3u8"
+  },
+  {
+    "cam_id": "gunung-kidul-1758376964",
+    "name": "Gunung Kidul",
+    "address": "Alun-Alun Wonosari, Wonosari, Gunungkidul Regency, Special Region of Yogyakarta, Java, Indonesia",
+    "stream_url": "https://stream.gunungkidulkab.go.id:8888/cd59b3ca-9f14-4660-96a6-2e65442c52a2/index.m3u8",
+    "zones": []
   }
 ]

@@ -21,6 +21,8 @@ import Navigation from "@/components/Navigation";
 import { Loader } from "@/components/spinner";
 import { toast } from "react-toastify";
 import { ToastProps } from "@/utilities/Props";
+import { LuListFilter } from "react-icons/lu";
+import FilterModal from "@/components/FilterModal";
 
 interface Track {
   track_id: number;
@@ -101,29 +103,43 @@ const IncidentList = ({
   incidents,
   onIncidentClick,
   onAccept,
+  selectedCameraId,
+  camIdFilter,
+  setFilterState,
   onDecline,
 }: {
   incidents: any[];
   onIncidentClick: (index: number) => void;
+  setFilterState: () => void;
+  selectedCameraId: string | null;
   onAccept: (incident: any) => void;
+  camIdFilter?: string;
   onDecline: (incident: any) => void;
 }) => (
   <div>
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6">
-      <div className="flex items-center space-x-3 mb-4 sm:mb-0">
+      <div className="flex w-full items-center space-x-3 mb-4 sm:mb-0">
         <h2 className="text-2xl font-bold text-white">
           Illegal Parking Alerts
         </h2>
         <div className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full">
           <span className="text-red-400 text-xs font-mono font-semibold">
-            {incidents.length} ACTIVE
+            {selectedCameraId ? incidents.filter(incident => incident.event.cam_id === selectedCameraId).length : incidents.length} ACTIVE
           </span>
         </div>
+        <button className="flex gap-2 ml-auto cursor-pointer items-center justify-center" onClick={() => setFilterState()}>
+          <LuListFilter />
+          <span className="text-gray-400 text-sm font-semibold"> Filter</span>
+        </button>
       </div>
     </div>
     <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
       {incidents.length > 0 ? (
         incidents
+          .filter((incident) => {
+            if (!camIdFilter) return true;
+            return incident.event.cam_id === camIdFilter;
+          })
           .sort(
             (a, b) =>
               new Date(a.event.started_at).getTime() -
@@ -139,68 +155,71 @@ const IncidentList = ({
             return (
               <div
                 key={eventDetails.event_id}
-                className="group relative overflow-hidden rounded-lg border border-gray-700 bg-tile1/80 hover:border-gray-600 hover:bg-tile1 transition-all duration-300"
+                className="group p-5 relative overflow-hidden rounded-lg border border-gray-700 bg-tile1/80 hover:border-gray-600 hover:bg-tile1 transition-all duration-300"
               >
                 <div
                   className={`absolute left-0 top-0 w-1 h-full ${urgency.color}`}
                 ></div>
                 <div
-                  className="p-4 pl-5 cursor-pointer"
+                  className="flex flex-col cursor-pointer"
                   onClick={() => onIncidentClick(index)}
                 >
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div
-                      className={`p-2 rounded-lg ${urgency.bgColor} flex-shrink-0`}
-                    >
-                      <UrgencyIcon className={`w-4 h-4 ${urgency.textColor}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-white text-sm leading-tight mb-1">
-                            <FiMapPin className="inline w-3 h-3 mr-1" />
-                            {incident.address || "Lokasi tidak diketahui"}
-                          </h3>
-                          <div className="flex items-center space-x-3 text-xs text-gray-400 font-mono">
-                            <div className="flex items-center space-x-1">
-                              <FiCamera className="w-3 h-3" />
-                              <span>{eventDetails.cam_id}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <FiClock className="w-3 h-3" />
-                              <span>
-                                {new Date(
-                                  eventDetails.started_at
-                                ).toLocaleTimeString()}
-                                {/* {new Date(eventDetails.started_at).getTime()} */}
-                              </span>
+                  <div>
+                    <div className="flex items-start space-x-3 mb-4">
+                      <div
+                        className={`p-2 rounded-lg ${urgency.bgColor} flex-shrink-0`}
+                      >
+                        <UrgencyIcon className={`w-4 h-4 ${urgency.textColor}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-white text-sm leading-tight mb-1">
+                              <FiMapPin className="inline w-3 h-3 mr-1" />
+                              {incident.address || "Lokasi tidak diketahui"}
+                            </h3>
+                            <div className="flex items-center space-x-3 text-xs text-gray-400 font-mono">
+                              <div className="flex items-center space-x-1">
+                                <FiCamera className="w-3 h-3" />
+                                <span>{eventDetails.cam_id}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <FiClock className="w-3 h-3" />
+                                <span>
+                                  {new Date(
+                                    eventDetails.started_at
+                                  ).toLocaleTimeString()}
+                                  {/* {new Date(eventDetails.started_at).getTime()} */}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex flex-col items-end space-y-1">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-bold border ${getPriorityColor(
-                              llmData?.priority_label
-                            )}`}
-                          >
-                            {llmData?.priority_label?.toUpperCase() ||
-                              "UNKNOWN"}
-                          </span>
-                          <div className="flex items-center space-x-1 text-xs">
-                            <FiZap className={`w-3 h-3 ${urgency.textColor}`} />
-                            <span className={`font-bold ${urgency.textColor}`}>
-                              {incident.urgency_score}
+                          <div className="flex flex-row items-center justify-center gap-5">
+                            <div className="flex items-center space-x-1 text-xs">
+                              <FiZap className={`w-3 h-3 ${urgency.textColor}`} />
+                              <span className={`font-bold ${urgency.textColor}`}>
+                                {incident.urgency_score}
+                              </span>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold border ${getPriorityColor(
+                                llmData?.priority_label
+                              )}`}
+                            >
+                              {llmData?.priority_label?.toUpperCase() ||
+                                "UNKNOWN"}
                             </span>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-
-                  <div className="pl-9 space-y-3">
+                </div>
+                <div className="flex flex-row portrait:flex-col gap-5">
+                  <div className="space-y-3">
                     {llmData?.narrative && (
                       <div className="bg-gray-800/50 rounded-md p-3 border border-gray-700/50">
-                        <p className="text-gray-300 text-sm leading-relaxed italic">
+                        <p className="text-gray-300 text-xs leading-relaxed italic">
                           {`"${llmData.narrative}"`}
                         </p>
                       </div>
@@ -249,7 +268,7 @@ const IncidentList = ({
                           </div>
                         </div>
                       )}
-                    <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-700/50">
+                    <div className="flex items-center justify-between text-xs border-t pt-1 border-gray-700/50">
                       <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-1">
                           <span className="text-gray-400">CONFIDENCE:</span>
@@ -280,11 +299,10 @@ const IncidentList = ({
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="px-4 pb-4 pl-14">
-                  {eventDetails.snapshot_url && (
-                    <div className="pt-2">
+                {/* snapshot gambar */}
+                <div> 
+                  <div>
+                    {eventDetails.snapshot_url && (
                       <img
                         src={eventDetails.snapshot_url}
                         alt={`Snapshot for ${eventDetails.event_id}`}
@@ -294,29 +312,30 @@ const IncidentList = ({
                           target.style.display = "none";
                         }}
                       />
-                    </div>
-                  )}
+                    )}
 
-                  <div className="flex items-center space-x-3 mt-4">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDecline(incident);
-                      }}
-                      className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
-                    >
-                      Decline
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAccept(incident);
-                      }}
-                      className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
-                    >
-                      Accept
-                    </button>
+                    <div className="flex items-center space-x-3 mt-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDecline(incident);
+                        }}
+                        className="w-full text-center py-2 px-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
+                      >
+                        Decline
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAccept(incident);
+                        }}
+                        className="w-full text-center py-2 px-4 bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/30 rounded-lg transition-all duration-200 font-semibold hover:cursor-pointer"
+                      >
+                        Accept
+                      </button>
+                    </div>
                   </div>
+                </div>
                 </div>
               </div>
             );
@@ -503,6 +522,9 @@ export default function Home() {
   const [isClient, setIsClient] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<any | null>(null);
   const [wholePageLoading, setWholePageLoading] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState<boolean>(false);
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
+
 
   useEffect(() => {
     setIsClient(true);
@@ -742,13 +764,31 @@ export default function Home() {
     return null;
   }
 
+  const filterByCamId = (cameraId: string) => {
+    setSelectedCameraId(cameraId);
+    setIsFilterModalOpen(false);
+    console.log("Selected Camera", cameraId);
+  }
+  
+
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
       {wholePageLoading && <Loader />}
+      { 
+        isFilterModalOpen &&
+        <FilterModal
+          isLoading={false}
+          setOnBackgroundClick={() => setIsFilterModalOpen(false)}
+          cameraIds={cctvLocations.length > 0 ? cctvLocations.map((cctv) => cctv.cam_id) : []}
+          buttonLabel="Apply Filters"
+          setState={(camId: string) => filterByCamId(camId)}
+          title="Camera Location Filters"
+        />
+      }
 
-      <main className="flex flex-col lg:flex-row w-full min-h-screen pt-24 mt-4 px-4 sm:px-6 lg:px-8 gap-6">
-        <div className="w-full lg:w-2/5 xl:w-1/3 flex-shrink-0 transition-all duration-300">
+      <main className="flex flex-row lg:flex-row w-full min-h-screen pt-24 mt-4 px-4 sm:px-6 lg:px-8 gap-6">
+        <div className="w-full lg:w-1/2 flex-shrink-0 transition-all duration-300 overflow-hidden">
           {selectedCCTV ? (
             <CctvPreview
               cctv={selectedCCTV}
@@ -760,12 +800,15 @@ export default function Home() {
               incidents={incidents}
               onIncidentClick={handleIncidentClick}
               onAccept={handleAccept}
+              selectedCameraId={selectedCameraId}
+              setFilterState={() => setIsFilterModalOpen(true)}
+              camIdFilter={selectedCameraId || undefined}
               onDecline={handleDecline}
             />
           )}
         </div>
 
-        <div className="w-full lg:w-3/5 xl:w-2/3 h-[50vh] lg:h-[calc(100vh-120px)] rounded-lg border border-gray-700 overflow-hidden">
+        <div className="w-full ml-auto lg:w-1/2 h-[50vh] lg:h-[calc(100vh-150px)] rounded-lg border border-gray-700 overflow-hidden">
           {cctvLocations.length > 0 ? (
             <Map
               illegalParkingLocations={incidents}

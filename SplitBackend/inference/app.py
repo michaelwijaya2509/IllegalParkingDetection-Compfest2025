@@ -84,7 +84,7 @@ except Exception as e:
     storage_client = None
 
 # ---- Load Behavior Model (tetap sama) ----
-MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1.pkl")
+MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1_fixed.pkl")
 MODEL_EVENT_INFERENCE = None
 try:
     log.info("Loading driver-exit model ...")
