@@ -134,7 +134,7 @@ const IncidentList = ({
         </div>
         <button className="flex gap-2 ml-auto cursor-pointer items-center justify-center" onClick={() => setFilterState()}>
           <LuListFilter className="text-gray-400" />
-          <span className="text-gray-400 text-sm font-semibold"> Filter</span>
+          <span className="text-gray-400 text-sm font-semibold"> {selectedCameraId || "All Cameras"}</span>
         </button>
       </div>
     </div>
@@ -858,7 +858,6 @@ export default function Home() {
               defaultViewingCoordinates={
                 previewCoordinates ?? [-6.9218, 107.607]
               }
-              cctvLocations={cctvLocations}
               zoomLevel={previewCoordinates ? 18 : 14}
               onMarkerClick={handleMarkerClick}
               onIncidentClick={handleIncidentClick}

@@ -10,7 +10,6 @@ export interface MapProps {
   className?: string;
   illegalParkingLocations: any[];
   defaultViewingCoordinates: [number, number];
-  cctvLocations: any[];
   zoomLevel: number;
   onMarkerClick: (index: number | null) => void;
   onIncidentClick: (index: number) => void;
