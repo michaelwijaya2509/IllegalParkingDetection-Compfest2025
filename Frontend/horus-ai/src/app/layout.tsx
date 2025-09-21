@@ -4,6 +4,7 @@ import { ToastContainer, Slide } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import "./globals.css";
+import { ContextProvider } from "@/provider/Provider";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -46,7 +47,7 @@ export default function RootLayout({
           transition={Slide}
           toastStyle={{ fontFamily: 'var(--font-primary)', zIndex: 9999999 }}
         />
-        {children}
+        <ContextProvider>{children}</ContextProvider>
       </body>
     </html>
   );

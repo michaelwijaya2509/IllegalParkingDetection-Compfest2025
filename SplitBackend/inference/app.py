@@ -206,6 +206,7 @@ class DetectorWorker(threading.Thread):
         self.label_map = self.model.names
 
         cap = cv2.VideoCapture(self.stream_url)
+        frame_index = 0
         if not cap.isOpened():
             broadcast({"type": "stream_error", "cam_id": self.cam_id, "msg": "cannot open stream"}, also_store=False)
             return
@@ -219,6 +220,9 @@ class DetectorWorker(threading.Thread):
 
         while not self.stop_flag.is_set():
             ok, frame = cap.read()
+            frame_index += 1
+            if frame_index % 3 != 0:
+                continue
             if not ok or frame is None:
                 break
 

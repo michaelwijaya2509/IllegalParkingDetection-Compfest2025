@@ -144,8 +144,8 @@ export default function LiveFeed() {
               Monitor all CCTV cameras in real-time
             </p>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-1">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-2">
               <div className="bg-tile1 rounded-lg border border-gray-700 p-4">
                 <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
                   <FiCamera className="mr-2" /> Cameras ({cameras.length})

@@ -3,7 +3,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useContext } from "react";
 import {
   FiClock,
   FiAlertTriangle,
@@ -25,6 +25,7 @@ import { ToastProps } from "@/utilities/Props";
 import { LuListFilter } from "react-icons/lu";
 import FilterModal from "@/components/FilterModal";
 import Image from "next/image";
+import { DataContext } from "@/context/Context";
 
 interface Track {
   track_id: number;
@@ -528,6 +529,7 @@ const CctvPreview = ({
   );
 };
 
+
 export default function Home() {
   const [cctvLocations, setCctvLocations] = useState<any[]>([]);
   const [incidents, setIncidents] = useState<any[]>([]);
@@ -539,8 +541,27 @@ export default function Home() {
   const [selectedIncident, setSelectedIncident] = useState<any | null>(null);
   const [wholePageLoading, setWholePageLoading] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState<boolean>(false);
-  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [incidentIdSubmitting, setIncidentIdSubmitting] = useState<string | null>(null);
+  
+  const context = useContext(DataContext);
+  const { selectedCamId, setSelectedCamId } = context || { selectedCamId: null, setSelectedCamId: () => {} };
+
+  useEffect(() => {
+    if (selectedCamId) {
+      const cam = incidents.find((incident) => incident.cam_id === selectedCamId);
+      if (cam) {
+        console.log(cam.coordinates);
+        setPreviewCoordinates(cam.coordinates as [number, number]);
+      }
+    } else {
+      console.log("cam not found")
+      setPreviewCoordinates(null);
+    }
+  }, [selectedCamId, incidents]);
+
+  useEffect(() => {
+    console.log("Selected Camera ID changed:", selectedCamId);
+  }, [selectedCamId]);
 
 
   useEffect(() => {
@@ -730,7 +751,9 @@ export default function Home() {
   const handleBackToList = () => {
     setSelectedCCTV(null);
     setSelectedIncident(null);
-    setPreviewCoordinates(null);
+    if (!selectedCamId) {
+      setPreviewCoordinates(null);
+    }
   };
 
   const handleAccept = async (incident: any) => {
@@ -784,7 +807,7 @@ export default function Home() {
   }
 
   const filterByCamId = (cameraId: string | null) => {
-    setSelectedCameraId(cameraId);
+    setSelectedCamId(cameraId);
     setIsFilterModalOpen(false);
     console.log("Selected Camera", cameraId);
   }
@@ -819,9 +842,9 @@ export default function Home() {
               incidents={incidents}
               onIncidentClick={handleIncidentClick}
               onAccept={handleAccept}
-              selectedCameraId={selectedCameraId}
+              selectedCameraId={selectedCamId}
               setFilterState={() => setIsFilterModalOpen(true)}
-              camIdFilter={selectedCameraId || undefined}
+              camIdFilter={selectedCamId || undefined}
               onDecline={handleDecline}
               isSubmitting={incidentIdSubmitting === selectedIncident?.event.event_id}
             />

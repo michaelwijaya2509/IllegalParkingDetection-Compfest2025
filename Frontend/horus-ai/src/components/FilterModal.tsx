@@ -1,7 +1,8 @@
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
+import { DataContext } from "@/context/Context";
 
 interface ModalProps {
   title: string;
@@ -23,15 +24,18 @@ const FilterModal: React.FC<ModalProps> = ({
   const navigate = useRouter();
   const [selectedCameraId, setSelectedCameraId] = useState<string>("");
 
+  const context = useContext(DataContext);
+  const { selectedCamId } = context || { selectedCamId: null };
+
+  useEffect(() => {
+    if (selectedCamId) {
+      setSelectedCameraId(selectedCamId);
+    }
+  }, [])
+
   const handleClick = () => {
-    if (selectedCameraId === "All Cameras") {
-      setState(null);
-      return;
-    }
-    if (selectedCameraId) {
-      setState(selectedCameraId);
-    }
-  };
+    setState(selectedCameraId === "All Cameras" ? null : selectedCameraId);
+  }
 
   return (
     <div

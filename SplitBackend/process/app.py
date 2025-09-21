@@ -38,7 +38,7 @@ PROJECT_ID       = os.environ.get("GOOGLE_PROJECT_ID", "horus-ai-468916")
 SECRET_ID        = os.environ.get("FIREBASE_SECRET_ID", "firebase-realtimedb-credentials")
 CAMCFG_PATH      = resolve_path(os.environ.get("CAMCFG_PATH", "config/cameras.json"))
 # INFER_BASE_URL   = "https://horus-inference-395725017559.asia-southeast1.run.app"             # e.g. https://infer-api-xxxxx.run.app
-INFER_BASE_URL   = "http://localhost:8080"  # for local testing with Cloud Run emulator
+INFER_BASE_URL   = os.environ.get("INFERENCE_BACKEND", "http://localhost:8080")  # for local testing with Cloud Run emulator
 INFER_AUDIENCE   = os.environ.get("INFER_AUDIENCE", INFER_BASE_URL)  # Cloud Run URL as audience
 INFER_UNAUTH     = os.environ.get("INFER_ALLOW_UNAUTH", "false").lower() == "true"
 
