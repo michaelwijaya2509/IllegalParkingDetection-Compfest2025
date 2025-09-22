@@ -84,7 +84,7 @@ except Exception as e:
     storage_client = None
 
 # ---- Load Behavior Model (tetap sama) ----
-MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1_fixed.pkl")
+MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1.pkl")
 MODEL_EVENT_INFERENCE = None
 try:
     log.info("Loading driver-exit model ...")
@@ -206,7 +206,6 @@ class DetectorWorker(threading.Thread):
         self.label_map = self.model.names
 
         cap = cv2.VideoCapture(self.stream_url)
-        frame_index = 0
         if not cap.isOpened():
             broadcast({"type": "stream_error", "cam_id": self.cam_id, "msg": "cannot open stream"}, also_store=False)
             return
@@ -220,9 +219,6 @@ class DetectorWorker(threading.Thread):
 
         while not self.stop_flag.is_set():
             ok, frame = cap.read()
-            frame_index += 1
-            if frame_index % 3 != 0:
-                continue
             if not ok or frame is None:
                 break
 
@@ -368,12 +364,6 @@ class DetectorWorker(threading.Thread):
                                 log.info("Snapshot uploaded: %s", snap_url)
                             else:
                                 log.error("Failed to encode snapshot JPEG")
-                        elif crop.size == 0:
-                            print("!!! IMPORTANT: Empty crop for snapshot")
-                        elif not gcs_bucket:
-                            print("!!! IMPORTANT: GCS bucket not configured, cannot upload snapshot")
-                        else:
-                            print("!!! IMPORTANT: Unknown issue in snapshot upload")
                     except Exception as e:
                         log.exception("Failed to upload snapshot: %s", e)
 
@@ -399,7 +389,7 @@ class DetectorWorker(threading.Thread):
                         snapshot_url=snap_url,
                         extra={"track_id": tr.track_id}
                     )
-                    print(" !!!!SNAP URL : ", snap_url)
+
                     scored_events = urgency_engine.score_events([(violation_event, is_traffic_jam)])
                     if scored_events:
                         scored = scored_events[0]
@@ -431,6 +421,18 @@ class DetectorWorker(threading.Thread):
         cap.release()
         log.info("worker %s stopped", self.cam_id)
 
+        try:
+            broadcast({"type": "stream_eof", "cam_id": self.cam_id}, also_store=True)
+        except Exception:
+            pass
+
+# Hapus diri dari registry jika masih tercatat sebagai worker aktif
+        try:
+            if workers.get(self.cam_id) is self:
+                del workers[self.cam_id]
+        except Exception:
+            pass    
+
     def stop(self):
         self.stop_flag.set()
 
@@ -445,6 +447,9 @@ class DetectorWorker(threading.Thread):
 # --------------------------------- Globals for service ---------------------------------
 workers: Dict[str, DetectorWorker] = {}
 
+#dictionary baru untuk menympan paramter terakhir video untuk autostart ketika direfresh
+last_start_params: Dict[str, dict] = {}
+
 # UrgencyEngine (kamera akan ditambahkan dinamis saat /worker/start jika meta diberikan)
 camera_metas: Dict[str, CameraMeta] = {}
 urgency_engine = UrgencyEngine(cameras=camera_metas)
@@ -454,22 +459,40 @@ os.makedirs(SNAP_DIR, exist_ok=True)
 
 # --------------------------------- MJPEG streamer (tetap sama) ---------------------------------
 def generate_frames(cam_id: str):
-    worker = workers.get(cam_id)
-    if not worker: return
+    idle = 0
     while cam_id in workers:
-        frame = worker.get_frame()
-        if frame is not None:
-            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            if ret:
-                frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        frame = workers[cam_id].get_frame() if cam_id in workers else None
+        if frame is None:
+            idle += 1
+            if idle > 200:  # ~6 detik
+                break
+            time.sleep(0.03)
+            continue
+        idle = 0
+        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if ret:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
         time.sleep(0.03)
 
 @app.get('/video/<cam_id>')
 def video_feed(cam_id):
+    autostart = request.args.get("autostart") == "1"
+    if cam_id not in workers and autostart and cam_id in last_start_params:
+        p = last_start_params[cam_id]
+        w = DetectorWorker(
+            cam_id=cam_id,
+            stream_url=p["stream_url"],
+            zones=p["zones"],
+            model_path=p["model"],
+            camera_meta=p["camera_meta"]
+        )
+        w.start()
+        workers[cam_id] = w
+
     if cam_id not in workers:
         return jsonify({"error": "Camera not running"}), 404
+
     return Response(generate_frames(cam_id), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 # --------------------------------- Worker management API (baru) ---------------------------------
@@ -493,6 +516,13 @@ def worker_start():
     zones = p["zones"]
     model = p.get("model", "yolo11n.pt")
     camera_meta = p.get("camera_meta", {})
+
+    last_start_params[cam_id] = {
+        "stream_url": stream_url,
+        "zones": zones,
+        "model": model,
+        "camera_meta": camera_meta
+    }
 
     w = DetectorWorker(cam_id=cam_id, stream_url=stream_url, zones=zones,
                        model_path=model, camera_meta=camera_meta)
@@ -527,6 +557,19 @@ def worker_status():
         "running_cameras": list(workers.keys()),
         "sse_clients": len(clients),
     })
+
+@app.get("/detector/tracking_data/<cam_id>")
+def get_tracking_data(cam_id):
+    """Get current tracking data for frontend display"""
+    worker = workers.get(cam_id)
+    if not worker:
+        return jsonify({"error": "Camera not running"}), 404
+
+    data = worker.get_tracking_data()
+    data["timestamp"] = time.time()
+    data["video_width"] = worker.frame_width
+    data["video_height"] = worker.frame_height
+    return jsonify(data)
 
 # --------------------------------- Misc ---------------------------------
 @app.get("/snaps/<path:name>")

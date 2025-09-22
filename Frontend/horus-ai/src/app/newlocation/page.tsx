@@ -260,7 +260,6 @@ export default function AddNewLocation() {
                 <Map
                   illegalParkingLocations={[]}
                   defaultViewingCoordinates={[latitude ? parseInt(latitude) : 0, longitude ? parseInt(longitude) : 0]}
-                  cctvLocations={latitude ? [{coordinates: [parseInt(latitude), parseInt(longitude)]}] : []}
                   zoomLevel={latitude ? 18 : 14}
                   onMarkerClick={() => {}}
                   onIncidentClick={() => {}}

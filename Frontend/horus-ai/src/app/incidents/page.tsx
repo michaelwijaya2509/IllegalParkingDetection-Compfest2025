@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import Navigation from "@/components/Navigation";
 import {
   FiMapPin,
@@ -11,6 +11,9 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 import Image from "next/image";
+import { LuListFilter } from "react-icons/lu";
+import { DataContext } from "@/context/Context";
+import FilterModal from "@/components/FilterModal";
 
 const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
 
@@ -20,6 +23,7 @@ interface ApprovedIncident {
     started_at: string;
     snapshot_url: string;
   };
+  cam_id: string;
   camera: {
     lat: number;
     lon: number;
@@ -43,7 +47,18 @@ export default function Incidents() {
   const [error, setError] = useState<string | null>(null);
   const [selectedIncident, setSelectedIncident] =
     useState<ApprovedIncident | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState<boolean>(false);
 
+  const context = useContext(DataContext);
+  const { selectedCamId, setSelectedCamId } = context || { selectedCamId: null, setSelectedCamId: () => {} };
+
+  const filterByCamId = (cameraId: string | null) => {
+    setSelectedCamId(cameraId);
+    setIsFilterModalOpen(false);
+    console.log("Selected Camera", cameraId);
+  }
+  
+  
   useEffect(() => {
     const fetchApprovedIncidents = async () => {
       setIsLoading(true);
@@ -74,7 +89,21 @@ export default function Incidents() {
   return (
     <div className="min-h-screen bg-primary">
       <Navigation />
-
+      { 
+        isFilterModalOpen &&
+        <FilterModal
+          isLoading={false}
+          setOnBackgroundClick={() => setIsFilterModalOpen(false)}
+            cameraIds={
+              incidents.length > 0
+                ? [...new Set(incidents.map((incident) => incident.cam_id))]
+                : []
+            }
+          buttonLabel="Apply Filters"
+          setState={(camId: string | null) => filterByCamId(camId)}
+          title="Camera Location Filters"
+        />
+      }
       <main className="pt-28 p-12">
         <div className="max-w-10xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -91,10 +120,14 @@ export default function Incidents() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <div className="bg-tile1 rounded-lg border border-gray-700">
-                <div className="p-4 border-b border-gray-700">
+                <div className="flex flex-row p-4 border-b border-gray-700">
                   <h2 className="text-lg font-semibold text-white">
                     Approved Incidents ({incidents.length})
                   </h2>
+                  <button className="flex gap-2 ml-auto cursor-pointer items-center justify-center" onClick={() => setIsFilterModalOpen(true)}>
+                    <LuListFilter className="text-gray-400" />
+                    <span className="text-gray-400 text-sm font-semibold"> {selectedCamId || "All Cameras"}</span>
+                  </button>
                 </div>
 
                 {isLoading ? (
@@ -111,6 +144,7 @@ export default function Incidents() {
                   <div className="divide-y divide-gray-700 max-h-[70vh] overflow-y-auto">
                     {incidents.length > 0 ? (
                       incidents.map((incident) => (
+                        selectedCamId === null || selectedCamId === incident.cam_id) && (
                         <div
                           key={incident.event.event_id}
                           className={`p-4 cursor-pointer transition-colors ${

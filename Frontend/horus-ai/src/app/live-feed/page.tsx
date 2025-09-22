@@ -41,6 +41,7 @@ export default function LiveFeed() {
         setCameras(data);
         if (data.length > 0 && !selectedCamera) {
           setSelectedCamera(data[0]);
+          handleSelectCamera(data[0]);
         }
       } catch (error) {
         console.error("Failed to fetch cameras:", error);
@@ -166,7 +167,7 @@ export default function LiveFeed() {
                           {camera.is_running ? (
                             <FaCircleDot className="w-4 h-4 text-green-400 flex-shrink-0" />
                           ) : (
-                            <FaCircleDot className="w-4 h-4 text-red-400 flex-shrink-0" />
+                            <FaCircleDot className="w-4 h-4 text-yellow-400 flex-shrink-0" />
                           )}
                           <div>
                             <p className="font-medium text-sm">{camera.name}</p>
