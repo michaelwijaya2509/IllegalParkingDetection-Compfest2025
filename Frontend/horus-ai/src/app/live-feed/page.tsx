@@ -118,19 +118,29 @@ export default function LiveFeed() {
     }
   };
 
-  const isHlsStream =
+  const [isHlsStream, setIsHlsStream] = useState<boolean>(false);
+  const [isLocalStream, setIsLocalStream] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (
     selectedCamera?.is_running &&
     selectedCamera.stream_url &&
-    selectedCamera?.stream_url.startsWith("http");
+    selectedCamera?.stream_url.startsWith("http")) {
+      setIsHlsStream(true);
+    } else setIsHlsStream(false);
+  }, [selectedCamera]);
 
-  const isLocalStream =
-    selectedCamera?.is_running && selectedCamera.stream_endpoint;
+  useEffect(() => {
+    if (selectedCamera?.is_running && selectedCamera.stream_endpoint) 
+      setIsLocalStream(true);
+    else setIsLocalStream(false);
+  }, [selectedCamera]);
   
   useEffect(() => {
     if (!isLocalStream) return;
-    console.log(`${PROCESS_URL}${selectedCamera.stream_endpoint}`);
+    console.log(`${PROCESS_URL}${selectedCamera?.stream_endpoint}`);
   }, [isLocalStream]);
-
+  
   return (
     <div className="min-h-screen bg-primary">
       {wholePageLoading && <Loader />}
@@ -221,7 +231,7 @@ export default function LiveFeed() {
                         />
                       )} */}
 
-                      {isLocalStream && (
+                      {(isLocalStream && !isHlsStream) && (
                         <img
                           src={`${PROCESS_URL}${selectedCamera.stream_endpoint}`}
                           alt=" "

@@ -19,5 +19,5 @@ export default function HlsPlayer({ src }: { src: string }) {
     }
   }, [src]);
 
-  return <video ref={videoRef} controls autoPlay className="w-full h-auto" />;
+  return <video ref={videoRef} controls={false} autoPlay className="w-full h-auto" />;
 }
