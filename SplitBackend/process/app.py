@@ -329,51 +329,57 @@ def analytics_summary():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ========================= MCP : Finding Events API ========================
+# ========================= Updated MCP : Finding Events API ========================
 @app.post("/events/refresh_cache")
 def refresh_upcoming_events_cache():
-
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    if not gemini_api_key:
-        return jsonify({"error": "GEMINI_API_KEY variable not set."}), 500
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    if not openai_api_key:
+        log.error("OPENAI_API_KEY environment variable not set")
+        return jsonify({"error": "OPENAI_API_KEY environment variable not set."}), 500
 
     try:
         log.info("Starting expensive MCP event fetch to refresh cache...")
         python_executable = sys.executable
-        client_script_path = resolve_path("utils/mcp_events_client.py")
+        client_script_path = resolve_path("./utils/mcp_events_client.py")
 
         process = subprocess.run(
-            [python_executable, client_script_path, "--gemini-api-key", gemini_api_key],
-            capture_output=True, text=True, check=True, timeout=300
+            [python_executable, client_script_path, "--openai-api-key", openai_api_key],
+            capture_output=True, text=True, check=True, timeout=300,
+            cwd=os.path.dirname(__file__)
         )
+
+        log.info(f"Subprocess stdout: {process.stdout}")
+        log.error(f"Subprocess stderr: {process.stderr}")  # Log stderr for debugging
 
         events_data = json.loads(process.stdout)
         if "error" in events_data:
-             raise Exception(events_data["error"])
+            raise Exception(events_data["error"])
 
-        # Hapus cache lama dan simpan data baru ke Firebase
         log.info("MCP fetch successful. Clearing old cache and saving new data to Firebase...")
         fb_db_ref.child('UpcomingEvents').delete()
-        fb_db_ref.child('UpcomingEvents').set(events_data)
+        cache_data = {'all_events': events_data}
+        fb_db_ref.child('UpcomingEvents').set(cache_data)
         
-        # Simpan timestamp update
         timestamp = datetime.now().isoformat()
         fb_db_ref.child('UpcomingEvents_meta').child('last_updated').set(timestamp)
         
         log.info("Firebase cache updated successfully.")
         return jsonify({"ok": True, "message": "Event cache refreshed successfully.", "updated_at": timestamp})
 
+    except subprocess.CalledProcessError as e:
+        log.error(f"Subprocess failed with exit code {e.returncode}: {e.stderr}")
+        return jsonify({"error": "Failed to refresh event cache.", "details": f"Subprocess error: {e.stderr}"}), 500
     except Exception as e:
         log.exception("Failed to refresh event cache: %s", e)
         return jsonify({"error": "Failed to refresh event cache.", "details": str(e)}), 500
 
 @app.get("/events/upcoming")
 def get_upcoming_events_from_cache():
-  
     try:
         events_data = fb_db_ref.child('UpcomingEvents').get()
         if not events_data:
-            return jsonify({"all_events": [], "jakarta_events": [], "error": "Cache is empty."})
+            log.warning("Cache is empty")
+            return jsonify({"all_events": [], "error": "Cache is empty."})
         return jsonify(events_data)
     except Exception as e:
         log.exception("Failed to get events from cache: %s", e)
@@ -381,11 +387,14 @@ def get_upcoming_events_from_cache():
 
 @app.get("/events/cache_status")
 def get_events_cache_status():
-  
     try:
         timestamp = fb_db_ref.child('UpcomingEvents_meta').child('last_updated').get()
+        if not timestamp:
+            log.warning("Cache status not found")
+            return jsonify({"last_updated": "", "error": "Cache status not found."})
         return jsonify({"last_updated": timestamp})
     except Exception as e:
+        log.exception("Could not retrieve cache status: %s", e)
         return jsonify({"error": "Could not retrieve cache status.", "details": str(e)}), 500
 
 
