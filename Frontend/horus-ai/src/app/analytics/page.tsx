@@ -1,5 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
+import {
+  Chart as ChartJS,
+  LineElement, BarElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend
+} from "chart.js";
+import { Line, Bar } from "react-chartjs-2";
+
+ChartJS.defaults.color = "#9CA3AF";           // teks axis -> gray-400
+ChartJS.defaults.borderColor = "rgba(255,255,255,0.08)"; // grid halus
+
+ChartJS.register(LineElement, BarElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend);
 import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import {
@@ -41,6 +51,84 @@ interface AnalyticsData {
   violationTypes: CategoryData[];
   commonReasons: ReasonData[];
 }
+
+function IncidentTrendChart({
+  trends,
+}: {
+  trends: { date: string; count: number }[];
+}) {
+  if (!trends?.length) {
+    return <p className="text-gray-400">No data</p>;
+  }
+
+  const labels = trends.map((t) =>
+    new Date(t.date).toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "short",
+    })
+  );
+  const values = trends.map((t) => t.count);
+  const allZero = values.every((v) => v === 0);
+
+  if (allZero) {
+    return (
+      <div className="h-60 flex items-center justify-center text-gray-400">
+        Tidak ada incident approved dalam 7 hari terakhir
+      </div>
+    );
+  }
+
+  const data = {
+    labels,
+    datasets: [
+      {
+        label: "Approved incidents",
+        data: values,
+        borderWidth: 3,
+        tension: 0,
+        fill: false,
+        borderColor: "#3B82F6",           // tailwind blue-500
+        pointBackgroundColor: "#3B82F6",
+        pointBorderColor: "#ffffff",
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        spanGaps: true,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false as const,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title: (items: any[]) => items?.[0]?.label ?? "",
+          label: (item: any) => ` ${item.raw} incident(s)`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { color: "rgba(255,255,255,0.08)" },
+        ticks: { color: "#D1D5DB" }, // gray-300
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { precision: 0, color: "#D1D5DB" },
+        grid: { color: "rgba(255,255,255,0.08)" },
+      },
+    },
+  };
+
+  return (
+    <div className="h-60">
+      <Line data={data} options={options} />
+    </div>
+  );
+}
+
 
 export default function Analytics() {
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -169,42 +257,9 @@ export default function Analytics() {
                     <FiTrendingUp className="mr-2" />
                     Incident Trends (Last 7 Days)
                   </h2>
-                  <div className="space-y-3">
-                    {data.incidentTrends.map((trend) => (
-                      <div
-                        key={trend.date}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <p className="text-gray-300">
-                          {formatDate(trend.date)}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <div className="w-32 bg-gray-700 rounded-full h-2.5">
-                            <div
-                              className="bg-blue-500 h-2.5 rounded-full"
-                              style={{
-                                width: `${Math.max(
-                                  1,
-                                  (trend.count /
-                                    Math.max(
-                                      ...data.incidentTrends.map(
-                                        (t) => t.count
-                                      ),
-                                      1
-                                    )) *
-                                    100
-                                )}%`,
-                              }}
-                            ></div>
-                          </div>
-                          <p className="font-semibold text-white w-8 text-right">
-                            {trend.count}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <IncidentTrendChart trends={data.incidentTrends} />
                 </div>
+
 
                 <div className="bg-tile1 border border-gray-700 rounded-lg p-6">
                   <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
