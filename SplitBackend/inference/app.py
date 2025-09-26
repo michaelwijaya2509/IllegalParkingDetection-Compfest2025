@@ -84,7 +84,7 @@ except Exception as e:
     storage_client = None
 
 # ---- Load Behavior Model (tetap sama) ----
-MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1.pkl")
+MODEL_EVENT_PATH = resolve_path("best_cnnlstm_stage1_fixed.pkl")
 MODEL_EVENT_INFERENCE = None
 try:
     log.info("Loading driver-exit model ...")
@@ -464,7 +464,7 @@ def generate_frames(cam_id: str):
         frame = workers[cam_id].get_frame() if cam_id in workers else None
         if frame is None:
             idle += 1
-            if idle > 200:  # ~6 detik
+            if idle > 250:  # ~7 detik
                 break
             time.sleep(0.03)
             continue

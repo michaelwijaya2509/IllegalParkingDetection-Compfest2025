@@ -3,7 +3,7 @@
     "cam_id": "viet1",
     "name": "Quang Trung Street",
     "address": "130 Quang Trung, H\u1ea3i Ch\u00e2u, \u0110\u00e0 N\u1eb5ng, Vietnam",
-    "stream_url": "data/videos/vietnam11.mp4",
+    "stream_url": "https://stream.gunungkidulkab.go.id:8888/cd59b3ca-9f14-4660-96a6-2e65442c52a2/index.m3u8",
     "zones": [
       "data/zones/zona_enhanced.json",
       "data/zones/zona_vietnam1.json"

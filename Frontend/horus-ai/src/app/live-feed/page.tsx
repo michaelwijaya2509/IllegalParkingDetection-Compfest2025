@@ -4,11 +4,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Navigation from "@/components/Navigation";
-import {
-  FiCamera,
-  FiWifiOff,
-  FiTrash2,
-} from "react-icons/fi";
+import { FiCamera, FiWifiOff, FiTrash2 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
 import { Loader } from "@/components/spinner";
 import { FaCircleDot } from "react-icons/fa6";
@@ -22,14 +18,114 @@ interface Camera {
   stream_endpoint: string | null;
 }
 
+interface Zone {
+  name: string;
+  polygon: [number, number][];
+}
+
+interface Track {
+  track_id: number;
+  class_name: string;
+  bbox: [number, number, number, number];
+  stationary_s: number;
+  is_violation: boolean;
+  is_close_to_violation: boolean;
+}
+
+interface TrackingData {
+  tracks: Track[];
+  zones: Zone[];
+  timestamp: number;
+  video_width: number;
+  video_height: number;
+}
+
 const PROCESS_URL = process.env.NEXT_PUBLIC_PROCESS_URL;
+const INFERENCE_URL = process.env.NEXT_PUBLIC_INFERENCE_URL;
 
 export default function LiveFeed() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [wholePageLoading, setWholePageLoading] = useState(false);
+  const [trackingData, setTrackingData] = useState<TrackingData | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLImageElement>(null);
+
+  const drawOverlays = (data: TrackingData | null) => {
+    const canvas = canvasRef.current;
+    const videoElement = videoRef.current;
+    let scaleX = null;
+    let scaleY = null;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    if (data) {
+      if (!videoElement && data.video_width === 0) return;
+      
+      
+      if (!ctx) return;
+
+      const videoRect = videoElement?.getBoundingClientRect();
+      const displayWidth =
+        videoRect?.width || canvas.parentElement?.clientWidth || 0;
+      const displayHeight =
+        videoRect?.height || canvas.parentElement?.clientHeight || 0;
+
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+
+      scaleX = displayWidth / (data.video_width || 1);
+      scaleY = displayHeight / (data.video_height || 1);
+    }
+
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!data || !scaleX || !scaleY || !data.zones) return;
+
+    // Draw zones
+    ctx.strokeStyle = "yellow";
+    ctx.lineWidth = 2;
+    data.zones.forEach((zone) => {
+      ctx.beginPath();
+      zone.polygon.forEach((point, index) => {
+        const [x, y] = point;
+        if (index === 0) ctx.moveTo(x * scaleX, y * scaleY);
+        else ctx.lineTo(x * scaleX, y * scaleY);
+      });
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = "yellow";
+      ctx.font = "14px Arial";
+      ctx.fillText(
+        zone.name,
+        zone.polygon[0][0] * scaleX,
+        zone.polygon[0][1] * scaleY - 5
+      );
+    });
+
+    // Draw tracks (bounding boxes)
+    data.tracks.forEach((track) => {
+      const [x1, y1, x2, y2] = track.bbox;
+      const color = track.is_violation
+        ? "red"
+        : track.is_close_to_violation
+        ? "orange"
+        : "cyan";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = track.is_violation || track.is_close_to_violation ? 3 : 2;
+      ctx.strokeRect(
+        x1 * scaleX,
+        y1 * scaleY,
+        (x2 - x1) * scaleX,
+        (y2 - y1) * scaleY
+      );
+      ctx.fillStyle = "white";
+      ctx.font = "12px Arial";
+      const label = `${track.class_name}:${track.track_id} (${track.stationary_s}s)`;
+      ctx.fillText(label, x1 * scaleX, y1 * scaleY - 5);
+    });
+  };
 
   useEffect(() => {
     async function fetchCameras() {
@@ -52,6 +148,31 @@ export default function LiveFeed() {
     }
     fetchCameras();
   }, []);
+
+  useEffect(() => {
+    if (!selectedCamera?.is_running) {
+      setTrackingData(null);
+      return;
+    }
+    const intervalId = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${INFERENCE_URL}/detector/tracking_data/${selectedCamera.cam_id}`
+        );
+        const data: TrackingData = await response.json();
+        setTrackingData(data);
+      } catch (error) {
+        console.error("Failed to fetch tracking data:", error);
+        setTrackingData(null);
+      }
+    }, 500);
+    return () => clearInterval(intervalId);
+  }, [selectedCamera?.cam_id, selectedCamera?.is_running]);
+
+  useEffect(() => {
+    drawOverlays(trackingData);
+    
+  }, [trackingData]);
 
   const startCameraDetector = async (cam_id: string) => {
     try {
@@ -123,24 +244,28 @@ export default function LiveFeed() {
 
   useEffect(() => {
     if (
-    selectedCamera?.is_running &&
-    selectedCamera.stream_url &&
-    selectedCamera?.stream_url.startsWith("http")) {
+      selectedCamera?.is_running &&
+      selectedCamera.stream_url &&
+      selectedCamera?.stream_url.startsWith("http")
+    ) {
       setIsHlsStream(true);
     } else setIsHlsStream(false);
   }, [selectedCamera]);
 
   useEffect(() => {
-    if (selectedCamera?.is_running && selectedCamera.stream_endpoint) 
+    if (selectedCamera?.is_running && selectedCamera.stream_endpoint) {
       setIsLocalStream(true);
+      drawOverlays(null);
+    }
+      
     else setIsLocalStream(false);
   }, [selectedCamera]);
-  
+
   useEffect(() => {
     if (!isLocalStream) return;
     console.log(`${PROCESS_URL}${selectedCamera?.stream_endpoint}`);
   }, [isLocalStream]);
-  
+
   return (
     <div className="min-h-screen bg-primary">
       {wholePageLoading && <Loader />}
@@ -218,25 +343,11 @@ export default function LiveFeed() {
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                   {selectedCamera?.is_running ? (
                     <>
-                      {/* {isLocalStream && (
-                        <video
-                          src={`${PROCESS_URL}${selectedCamera.stream_endpoint}`}
-                          width={640}
-                          height={0}
-                          autoPlay
-                          // alt="a"
-                          // onError={() => {return <Loader />}}
-                          // priority
-                          className="absolute top-0 left-0 w-full h-full object-contain"
-                        />
-                      )} */}
-
-                      {(isLocalStream && !isHlsStream) && (
+                      {isLocalStream && !isHlsStream && (
                         <img
+                          ref={videoRef} // Added ref to the image element
                           src={`${PROCESS_URL}${selectedCamera.stream_endpoint}`}
-                          alt=" "
-                          // onError={() => {return <Loader />}}
-                          // priority
+                          alt="Live video feed"
                           className="absolute top-0 left-0 w-full h-full object-contain"
                         />
                       )}
