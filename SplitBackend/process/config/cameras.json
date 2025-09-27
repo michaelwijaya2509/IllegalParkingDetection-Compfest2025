@@ -1,6 +1,6 @@
 [
   {
-    "cam_id": "viet1",
+    "cam_id": "viet_1",
     "name": "Quang Trung Street",
     "address": "130 Quang Trung, H\u1ea3i Ch\u00e2u, \u0110\u00e0 N\u1eb5ng, Vietnam",
     "stream_url": "data/videos/vietnam11.mp4",
@@ -10,36 +10,40 @@
     ]
   },
   {
-    "cam_id": "asia-afrika-1755859938",
+    "cam_id": "pasteur_1",
+    "name": "Jl. Pasteur",
+    "address": "Jl. Pasteur Bandung City, West Java",
+    "stream_url": "data/videos/pasteur.mp4",
+    "zones": [
+      "data/zones/zona1pasteur.json",
+      "data/zones/zona2pasteur.json"
+    ]
+  },
+  {
+    "cam_id": "asia_afrika_1",
     "name": "Asia Afrika",
-    "address": "Jln Asia Afrika",
+    "address": "Jl. Asia Afrika Bandung City, West Java",
     "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/AsiaAfrikaBRITowerdua.m3u8",
     "zones": []
   },
   {
-    "cam_id": "jln-random-1755859992",
-    "name": "Jln random",
-    "address": "random",
-    "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/DlOtis.m3u8",
-    "zones": []
-  },
-  {
-    "cam_id": "asia-afrika-2-1755860502",
+    "cam_id": "asia_afrika_2",
     "name": "Asia Afrika 2",
-    "address": "Asia Afrika 2 Jlan",
+    "address": "Jl. Asia Afrika Bandung City, West Java",
     "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/asiaafrika.m3u8",
     "zones": []
   },
   {
-    "cam_id": "asia-afrika-3-1755861309",
-    "name": "Asia Afrika 3",
-    "address": "Jln Asia Afrika 3",
-    "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/asiaafrika.m3u8"
+    "cam_id": "gardujati_1",
+    "name": "Gardujati",
+    "address": "Jl. Gardujati Bandung City, West Java",
+    "stream_url": "https://pelindung.bandung.go.id:3443/video/HIKSVISION/DlOtis.m3u8",
+    "zones": []
   },
   {
-    "cam_id": "gunung-kidul-1758376964",
+    "cam_id": "gunung_kidul_1",
     "name": "Gunung Kidul",
-    "address": "Alun-Alun Wonosari, Wonosari, Gunungkidul Regency, Special Region of Yogyakarta, Java, Indonesia",
+    "address": "Alun-Alun Wonosari, Wonosari, Gunungkidul Regency, Yogyakarta, Indonesia",
     "stream_url": "https://stream.gunungkidulkab.go.id:8888/cd59b3ca-9f14-4660-96a6-2e65442c52a2/index.m3u8",
     "zones": []
   }

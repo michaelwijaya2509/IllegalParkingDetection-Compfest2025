@@ -259,7 +259,7 @@ export default function AddNewLocation() {
               <div className="bg-tile1 border border-gray-700 rounded-lg p-8 max-h-[600px] flex flex-col">
                 <Map
                   illegalParkingLocations={[]}
-                  defaultViewingCoordinates={[latitude ? parseInt(latitude) : 0, longitude ? parseInt(longitude) : 0]}
+                  defaultViewingCoordinates={[latitude ? parseFloat(latitude) : -6.9218, longitude ? parseFloat(longitude) : 107.6072]}
                   zoomLevel={latitude ? 18 : 14}
                   onMarkerClick={() => {}}
                   onIncidentClick={() => {}}
