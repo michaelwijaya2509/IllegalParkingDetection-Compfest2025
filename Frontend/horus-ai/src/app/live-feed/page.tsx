@@ -4,7 +4,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Navigation from "@/components/Navigation";
-import { FiCamera, FiWifiOff, FiTrash2 } from "react-icons/fi";
+import { FiCamera, FiTrash2 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
 import { Loader } from "@/components/spinner";
 import { FaCircleDot } from "react-icons/fa6";
