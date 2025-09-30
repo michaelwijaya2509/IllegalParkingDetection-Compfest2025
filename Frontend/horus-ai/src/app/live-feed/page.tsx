@@ -8,6 +8,8 @@ import { FiCamera, FiWifiOff, FiTrash2 } from "react-icons/fi";
 import HlsPlayer from "@/components/HLSPlayer";
 import { Loader } from "@/components/spinner";
 import { FaCircleDot } from "react-icons/fa6";
+import AnnouncementModal from "@/components/AnnouncementModal";
+import { LuServerOff } from "react-icons/lu";
 
 interface Camera {
   cam_id: string;
@@ -48,6 +50,7 @@ export default function LiveFeed() {
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [wholePageLoading, setWholePageLoading] = useState(false);
   const [trackingData, setTrackingData] = useState<TrackingData | null>(null);
+  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLImageElement>(null);
@@ -78,7 +81,6 @@ export default function LiveFeed() {
       scaleX = displayWidth / (data.video_width || 1);
       scaleY = displayHeight / (data.video_height || 1);
     }
-
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!data || !scaleX || !scaleY || !data.zones) return;
@@ -266,9 +268,28 @@ export default function LiveFeed() {
     console.log(`${PROCESS_URL}${selectedCamera?.stream_endpoint}`);
   }, [isLocalStream]);
 
+  const closeAnnouncementModal = () => {
+    setIsAnnouncementModalOpen(false);
+  }
+
+  const descriptions = [
+    <p key="1" className="mt-2 text-sm text-gray-300">We’re excited to share that our team proudly secured <strong className="text-white">🥉3rd place</strong> out of 245 teams in the <a href="https://compfest.id/competition/aic" className="text-blue-500 hover:text-blue-400 hover:underline">COMPFEST 17</a> competition.</p>,
+    <p key="2" className="mt-2 text-sm text-gray-300">As much as we’d love to keep our system running, maintaining the backend inference server requires significant resources and computational costs. For this reason, we’ve decided to <strong className="text-white">SHUT DOWN</strong> the inference service for now. The <a href="https://github.com/michaelwijaya2509/IllegalParkingDetection-Compfest2025.git" className="text-blue-500 hover:text-blue-400 hover:underline">GitHub repository</a> will remain accessible for reference and further development.</p>,
+    <p key="3" className="mt-2 text-sm text-gray-300">Thank you for all the support and enthusiasm you’ve shown throughout this journey—it truly means a lot to us.</p>,
+    <p key="4" className="mt-2 text-sm text-gray-300">Stay tuned, this is just the beginning! For more information, check out our <a href="https://www.linkedin.com/posts/vincentius-jacob-922b56302_ai-computervision-smartcity-activity-7378126946628603906-o2Zf?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAEBSIYABpUH0ERouPF8R99StYtn6JpM5qUM" className="text-blue-500 hover:text-blue-400 hover:underline">LinkedIn post</a>.</p>
+  ]
+
   return (
     <div className="min-h-screen bg-primary">
       {wholePageLoading && <Loader />}
+      {isAnnouncementModalOpen && (<AnnouncementModal
+        title="Hi there!"
+        buttonLabel="I understand"
+        descriptions={descriptions}
+        isLoading={false}
+        setState={closeAnnouncementModal}
+        setOnBackgroundClick={closeAnnouncementModal}
+      />)}
       <Navigation />
       <main className="pt-28 lg:px-40 p-12">
         <div className="max-w-10xl mx-auto">
@@ -370,10 +391,10 @@ export default function LiveFeed() {
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center">
-                        <FiWifiOff className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+                        <LuServerOff className="w-16 h-16 text-gray-500 mx-auto mb-4" />
                         <p className="text-gray-400">
                           {selectedCamera
-                            ? "Camera offline. Click list to start."
+                            ? "Inference server has been shut down. Live feed is no longer available."
                             : "Select a camera to view feed."}
                         </p>
                       </div>
